@@ -1,11 +1,7 @@
 # caspl_ass2
 
 Jump table
-
 Loops
-
 Lea
-
-Eqv
-
+Equ
 Local labels
