@@ -1,14 +1,18 @@
 section .rodata
     format_string : db "%d", 10, 0
     input_length equ 80
-    debug_msg: db "debug msg", 10,0
 
 section .bss
-    buff: resb 80          ; input buffer
-    op_stack: resb 20      ; operand stack
+    buff: resb 80           ; input buffer
+    op_stack: resb 20       ; operand stack
     len: equ $ - op_stack
-    counter: resd 1        ; op_stack elements counter, initialized to zero
-    op_top: resd 1         ; pointer to the op_stack pointer
+    counter: resd 1         ; op_stack elements counter, initialized to zero
+    op_top: resd 1          ; pointer to the op_stack pointer
+    buff_len: resd 1        ; length of the buffer (used in buff_to_list)
+    two_rightmost: resb 2
+    ;link:
+    ;    db: 0               ; data byte
+    ;    dd: 0               ; pointer to next link
 
     
 
@@ -54,45 +58,91 @@ myCalc:
     push ebp
     mov ebp,esp
     pushad
-    call getInput
-    ;;;;;
-    push buff
     
-debug:
 
-    call get_length
-    add esp,4
-    push eax
-    push format_string
-    call printf
-    add esp,8
+    call getInput
+    cmp byte [buff], "q"
+    jnz main_loop
     
-    ;cmp byte [buff], "q"
-    ;jnz main_loop
-    
-    ;popad                   ; Restore caller state
+    popad                   ; Restore caller state
     mov esp, ebp            ; Restore caller state
     pop ebp                 ; Restore caller state
     ret
     
 main_loop:
-    nop
+    push buff
+    call buff_to_list
+    add esp,4
+    push eax
+
+    jmp myCalc
     
 get_length:
     push ebp
     mov ebp,esp
     mov ebx, [ebp+8]              ; get first argument (pointer to buff)
-    mov eax,0                   ; holds the string get_length
+    mov eax,0                     ; holds the string get_length
     cmp byte [ebx], 10
     jnz .loop
-    mov esp, ebp            ; Restore caller state
-    pop ebp                 ; Restore caller state
+    mov esp, ebp                  ; Restore caller state
+    pop ebp                       ; Restore caller state
     ret
     .loop:
         inc eax
         inc ebx
-        cmp byte [ebx], 10
+    
+    cmp byte [ebx], 10
         jnz .loop
-        mov esp, ebp            ; Restore caller state
-        pop ebp                 ; Restore caller state
-        ret
+        mov esp, ebp              ; Restore caller state
+        po    push eax
+    push format_string
+    call printf
+    add esp,8
+    pop ebp                   ; Restore caller state
+    ret
+        
+        
+to_numeric:                       ; gets a string buffer and returns the numeric representation of the buffer
+    push ebp
+    mov ebp,esp
+    mov esi,[esp+8]
+    mov ecx, 2                    ; string length is 1 or 2, default 2
+    xor ebx,ebx                   ; clear ebx
+    .next_digit:
+    movzx eax,byte[esi]
+    inc esi
+    sub al,'0'                    ; convert from ASCII to number
+    imul ebx,16
+    add ebx,eax                   ; ebx = ebx*16 + eax
+    loop .next_digit              ; while (--ecx)
+    mov eax,ebx
+    mov esp, ebp                  ; Restore caller state
+    pop ebp                       ; Restore caller state
+    ret
+        
+        
+buff_to_list:                     ; gets a pointer to string and
+    push ebp                      ; returns a pointer to linked list
+    mov ebp,esp                   ; as suggested in class
+    mov ebx, dword [ebp+8]
+    push ebx                      ; ebx holds pointer to input buffer
+    call get_length
+    add esp,4
+    mov ecx,eax                   ; ecx = length of buffer
+    .loop:
+        mov edx, dword [ebx]
+        mov dword [two_rightmost],edx
+        push two_rightmost
+        call to_numeric
+        add esp,4
+        
+        
+        push eax
+        push format_string
+        call printf
+        add esp,8
+        
+        
+        add ebx, 2
+        dec ecx                   ; decrement ecx in addition to the loop decremantation
+        loop .loop, ecx
