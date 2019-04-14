@@ -92,12 +92,8 @@ get_length:
         inc ebx
     
     cmp byte [ebx], 10
-        jnz .loop
-        mov esp, ebp              ; Restore caller state
-        po    push eax
-    push format_string
-    call printf
-    add esp,8
+    jnz .loop
+    mov esp, ebp              ; Restore caller state
     pop ebp                   ; Restore caller state
     ret
         
@@ -105,6 +101,9 @@ get_length:
 to_numeric:                       ; gets a string buffer and returns the numeric representation of the buffer
     push ebp
     mov ebp,esp
+    sub esp, 4          ; Leave space for local var on stack
+    pushad
+    
     mov esi,[esp+8]
     mov ecx, 2                    ; string length is 1 or 2, default 2
     xor ebx,ebx                   ; clear ebx
@@ -115,7 +114,9 @@ to_numeric:                       ; gets a string buffer and returns the numeric
     imul ebx,16
     add ebx,eax                   ; ebx = ebx*16 + eax
     loop .next_digit              ; while (--ecx)
-    mov eax,ebx
+    mov [ebp-4], eax
+    popad
+    mov eax, [ebp-4]
     mov esp, ebp                  ; Restore caller state
     pop ebp                       ; Restore caller state
     ret
@@ -129,19 +130,17 @@ buff_to_list:                     ; gets a pointer to string and
     call get_length
     add esp,4
     mov ecx,eax                   ; ecx = length of buffer
+    sub ebx,2                       ; skips '\n'
     .loop:
-        mov edx, dword [ebx]
-        mov dword [two_rightmost],edx
-        push two_rightmost
+        
+        push ebx
         call to_numeric
         add esp,4
-        
-        
+
         push eax
         push format_string
         call printf
         add esp,8
-        
         
         add ebx, 2
         dec ecx                   ; decrement ecx in addition to the loop decremantation
