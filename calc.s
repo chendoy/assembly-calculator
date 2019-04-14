@@ -57,17 +57,20 @@ myCalc:
     call getInput
     ;;;;;
     push buff
+    
+debug:
+
     call get_length
+    add esp,4
     push eax
     push format_string
     call printf
     add esp,8
-    ;;;;;
     
-    cmp byte [buff], "q"
-    jnz main_loop
+    ;cmp byte [buff], "q"
+    ;jnz main_loop
     
-    popad                   ; Restore caller state
+    ;popad                   ; Restore caller state
     mov esp, ebp            ; Restore caller state
     pop ebp                 ; Restore caller state
     ret
@@ -78,21 +81,18 @@ main_loop:
 get_length:
     push ebp
     mov ebp,esp
-    pushad
-    mov ebx, [ebp+4]              ; get first argument (pointer to buff)
+    mov ebx, [ebp+8]              ; get first argument (pointer to buff)
     mov eax,0                   ; holds the string get_length
-    cmp dword [ebx], "\n"
+    cmp byte [ebx], 10
     jnz .loop
-    add esp,4
-    popad
-    pop ebp
+    mov esp, ebp            ; Restore caller state
+    pop ebp                 ; Restore caller state
     ret
     .loop:
         inc eax
         inc ebx
-        cmp dword [ebx], "\n"
+        cmp byte [ebx], 10
         jnz .loop
-        add esp,4
-        popad
-        pop ebp
+        mov esp, ebp            ; Restore caller state
+        pop ebp                 ; Restore caller state
         ret
