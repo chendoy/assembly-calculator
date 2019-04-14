@@ -2,8 +2,10 @@ section .rodata
     format_string : db "%d", 10, 0
     input_length equ 81
 
+
 section .bss
-    buff: resb 80           ; input buffer
+    buff: resb 81           ; input buffer
+    buff_backup: resb 81    ; backup for odd buffer length
     op_stack: resb 20       ; operand stack
     len: equ $ - op_stack
     counter: resd 1         ; op_stack elements counter, initialized to zero
@@ -110,10 +112,11 @@ to_numeric:                       ; gets a string buffer and returns the numeric
     pushad
     
     mov esi,[ebp+8]
-    mov ecx, 2                    ; string length is 1 or 2, default 2
+    mov ecx, 2                    ; string length is always 2
     xor ebx,ebx                   ; clear ebx
     .next_digit:
-    movzx eax,byte[esi]
+    
+    mov al,byte[esi]
     inc esi
     sub al,'0'                    ; convert from ASCII to number
     imul ebx,16
@@ -134,7 +137,40 @@ buff_to_list:                     ; gets a pointer to string and
     push ebx                      ; ebx holds pointer to input buffer
     call get_length
     add esp,4
+    
+    test eax, 1                   ; checks if the number is odd or even
+    jz buffer_isEven
+    
+    ; if reached here, buffer is not even, needs to pad with '0' at the beginning
+    
+    pushad
+    cld
+    mov esi, buff
+    mov edi, buff_backup
+    mov ecx, input_length
+    rep movsb
+    popad
+    
+    mov byte [buff], '0'
+    
+    pushad
+    cld
+    mov esi, buff_backup
+    mov edi, buff+1
+    mov ecx, input_length
+    rep movsb
+    popad
+    
+buffer_isEven:
+
+    push ebx                      ; ebx holds pointer to input buffer
+    call get_length
+    add esp,4
+    
     mov ecx,eax                   ; ecx = length of buffer
+    
+   
+    
     add ebx,ecx
     .loop:
         
