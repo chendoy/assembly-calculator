@@ -159,6 +159,7 @@ buff_to_list:                     ; gets a pointer to string and
     push ebp                      ; returns a pointer to linked list
     mov ebp,esp                   ; as suggested in class
     mov ebx, dword [ebp+8]
+    pushad
     push ebx                      ; ebx holds pointer to input buffer
     call get_length
     add esp,4
@@ -225,7 +226,7 @@ buffer_isEven:
         cmp byte [firstFlag], 1
         jz .first
         
-        mov  dword [prev+data], eax              ; connect prev and current
+        mov  dword [prev+next], eax              ; connect prev and current
         jmp .loop.continue_buff_to_list
         
         .first:
@@ -239,3 +240,11 @@ buffer_isEven:
         
         dec ecx                   ; decrement ecx in addition to the loop decremantation
         loop .loop, ecx
+        
+    ; returning from buff_to_list function
+    
+    popad
+    mov eax,[head]
+    mov esp, ebp              ; Restore caller state
+    pop ebp                   ; Restore caller state
+    ret
