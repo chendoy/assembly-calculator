@@ -151,6 +151,9 @@ get_input:
 .push_operand:           ; pushes the operand stored in buff onto the operand stack
     
     push buff
+    call buff_to_list
+    add esp,4
+    push eax
     call push_op
     add esp,4
     jmp get_input
