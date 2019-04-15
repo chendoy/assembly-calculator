@@ -1,5 +1,5 @@
 section .rodata
-    format_string_hex : db "%#04x",0
+    format_string_hex : db "%#04X",0
     format_string_s : db "%s",0
     arrow_symbol : db " -> ",0
     end_str: db "END",10, 0
@@ -7,6 +7,7 @@ section .rodata
     emptyStack_error: db "Insufficent Number of Arguments on Stack",10,0
     input_length equ 81
     LINK_SIZE equ 5
+    prompt: db "calc: ",0
 
 
 section .bss
@@ -27,6 +28,17 @@ section .bss
     
 section .data
   counter: dd 0                ; op_stack elements counter, initialized to zero
+  
+%macro print_and_flush 2
+    push %1
+    push %2
+    call printf               ; arg0 - content, arg1 - format
+    add esp,8
+    
+    push dword [stdout]       ; flushes stdout (in case no '\n' is used)
+    call fflush
+    add esp,4
+%endmacro
 
 section .text
 align 16
@@ -57,6 +69,7 @@ getInput:
     
   
 main:
+    mov byte [firstFlag], 1      ; initializes the flag to 'true'
     mov eax, op_stack
     mov dword [op_top], eax     ; initially op_top points to op_stack
     call myCalc
@@ -66,37 +79,65 @@ main:
     
 
 myCalc:
-    push ebp
-    mov ebp,esp
-    pushad
+    push ebp              ; save caller state
+    mov ebp,esp           ; save caller state
+    pushad                ; save caller state
     
+    print_and_flush prompt, format_string_s
+    
+    call getInput         ; fill buff variable with user input
+    
+    cmp byte [buff], "q"  
+    jz .exit
+    
+    cmp byte [buff], "+"
+    jz .addition
+    
+    cmp byte [buff], "p"
+    jz .pop_and_print
+    
+    cmp byte [buff], "d"
+    jz .duplicate
+    
+    cmp byte [buff], "^"
+    jz .mul_and_exp
+    
+    cmp byte [buff], "v"
+    jz .mul_and_exp_oppo
+    
+    cmp byte [buff], "n"
+    jz .number_of_1_bits
+    
+    cmp word [buff], "sr"
+    jz .square_root
+    
+    push buff             ; default case, probable a number - push it to operand stack
+    
+    call buff_to_list
+    add esp,4
+    
+    
+.addition:
 
-    call getInput
-    cmp byte [buff], "q"
-    jnz main_loop
+.pop_and_print:
 
-debug:
+.duplicate:
+
+.mul_and_exp:
+
+.mul_and_exp_oppo:
+
+.number_of_1_bits:   
+
+.square_root:
+ 
+.exit:
     
     popad                   ; Restore caller state
     mov esp, ebp            ; Restore caller state
     pop ebp                 ; Restore caller state
     ret
     
-main_loop:
-    push buff
-    mov byte [firstFlag], 1      ; initializes the flag to 'true'
-    call buff_to_list
-    add esp,4
-    
-    ;----------DEBUG---------;
-    
-    push eax
-    call print_list
-    add esp,4
-    
-    ;----------DEBUG---------;
-    
-    jmp debug
     
 print_list:
     push ebp
@@ -106,29 +147,12 @@ print_list:
         
     printing_loop:
     
-   
-    
     pushad
     
     movzx edx, byte [ebx]
-    push edx
-    push format_string_hex
-    call printf
-    add esp,8
-    
-    push dword [stdout]
-    call fflush
-    add esp,4
-    
-    push arrow_symbol
-    push format_string_s
-    call printf
-    add esp,8
-    
-    push dword [stdout]
-    call fflush
-    add esp,4
-    
+    print_and_flush edx, format_string_hex         ; prints the link data
+    print_and_flush arrow_symbol, format_string_s  ; prints ->
+
     popad
 
 debug2:
@@ -266,7 +290,7 @@ buffer_isEven:
     add ebx,ecx
     .loop:
         
-        sub ebx,2
+        sub ebx,'0'
         push ebx
         call to_numeric
         add esp,4
@@ -314,11 +338,12 @@ buffer_isEven:
     mov eax,[head]
     mov esp, ebp              ; Restore caller state
     pop ebp                   ; Restore caller state
+    mov byte [firstFlag], 1      ; initializes the flag to 'true'
     ret
     
     
 
-push_op:  ; if the stack is full an error will be printed, otherwise the head will be added
+push_op:                            ; if the stack is full an error will be printed, otherwise the head will be added
     push ebp
     mov ebp,esp                    
     pushad
