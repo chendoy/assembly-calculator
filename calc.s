@@ -83,6 +83,8 @@ myCalc:
     mov ebp,esp           ; save caller state
     pushad                ; save caller state
     
+get_input:
+    
     print_and_flush prompt, format_string_s
     
     call getInput         ; fill buff variable with user input
@@ -111,7 +113,8 @@ myCalc:
     cmp word [buff], "sr"
     jz .square_root
     
-    push buff             ; default case, probable a number - push it to operand stack
+    jmp .push_operand      ; default case, probable a number - push it to operand stack
+    
     
     call buff_to_list
     add esp,4
@@ -119,17 +122,40 @@ myCalc:
     
 .addition:
 
+    jmp get_input
+
 .pop_and_print:
+
+    jmp get_input
 
 .duplicate:
 
+    jmp get_input
+
 .mul_and_exp:
+
+    jmp get_input
 
 .mul_and_exp_oppo:
 
+    jmp get_input
+
 .number_of_1_bits:   
 
+    jmp get_input
+
 .square_root:
+
+    jmp get_input
+    
+.push_operand:           ; pushes the operand stored in buff onto the operand stack
+    
+    push buff
+    call push_op
+    add esp,4
+    jmp get_input
+
+    
  
 .exit:
     
