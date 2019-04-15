@@ -1,21 +1,24 @@
 section .rodata
     format_string : db "%d", 10, 0
     input_length equ 81
+    LINK_SIZE equ 5
 
 
 section .bss
-    buff: resb 81           ; input buffer
-    buff_backup: resb 81    ; backup for odd buffer length
-    op_stack: resb 20       ; operand stack
+    buff: resb 81                  ; input buffer
+    buff_backup: resb 81           ; backup for odd buffer length
+    op_stack: resb 20              ; operand stack
     len: equ $ - op_stack
-    counter: resd 1         ; op_stack elements counter, initialized to zero
-    op_top: resd 1          ; pointer to the op_stack pointer
-    buff_len: resd 1        ; length of the buffer (used in buff_to_list)
-    two_rightmost: resb 2
-    ;link:
-    ;    db: 0               ; data byte
-    ;    dd: 0               ; pointer to next link
-
+    counter: resd 1                ; op_stack elements counter, initialized to zero
+    op_top: resd 1                 ; pointer to the op_stack pointer
+    buff_len: resd 1               ; length of the buffer (used in buff_to_list)
+    struc link
+        data: resb 1               ; data byte
+        next: resb 4               ; pointer to next link
+    endstruc
+    head: resd 1                   ; head of created linked list
+    firstFlag: resb 1
+    prev: resd 1
     
 
 
@@ -73,6 +76,7 @@ myCalc:
     
 main_loop:
     push buff
+    mov byte [firstFlag], 1      ; initializes the flag to 'true'
     call buff_to_list
     add esp,4
     push eax
@@ -195,13 +199,28 @@ buffer_isEven:
         push ebx
         call to_numeric
         add esp,4
+        
+        mov edx, eax                      ; backup numeric value in another register before memory allocation
+        
+        ; at this point EAX holds the numeric representation of the rightmost two digits of the buffer
+        
+        push 1                            ; 1 byte * 5 (num of link elements) = 5 bytes
+        push LINK_SIZE
+        call calloc
+        add esp, 8                        ; clean stack after calloc call
+        mov [eax], dl                     ; take the lower byte of edx and store it in the data of the link
+        mov  dword [eax+data], 0          ; for now the next pointer is NULL
+        
+        mov  dword [prev+data], eax              ; connect prev and current
+        
+        cmp byte [firstFlag], 1
+        jnz .not_first
+        mov [head], eax
+        mov byte [firstFlag], 0                ; we've created the first link already, turns off the flag
 
-        pushad
-        push eax
-        push format_string
-        call printf
-        add esp,8
-        popad
+        .not_first:
+        
+        mov [prev], eax                   ; prepares prev for the next link assignment
         
         dec ecx                   ; decrement ecx in addition to the loop decremantation
         loop .loop, ecx
