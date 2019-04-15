@@ -5,7 +5,7 @@ calc: calc.o
 	rm -f *.o
 	
 calc.o: calc.s
-	nasm -f elf calc.s -o calc.o
+	nasm -f elf calc.s -g -o calc.o
 
 .PHONY: clean
 clean:

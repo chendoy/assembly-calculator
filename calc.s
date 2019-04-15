@@ -1,13 +1,14 @@
 section .rodata
     format_string_hex : db "%#04X",0
     format_string_s : db "%s",0
-    arrow_symbol : db " -> ",0
+    arrow_symbol : db " -> ",0             ; DELETE BEFORE SUBMMISION
     end_str: db "END",10, 0
-    fullStack_error : db "Operand Stack Overflow ",10,0
-    emptyStack_error: db "Insufficent Number of Arguments on Stack",10,0
+    fullStack_error : db "Error: Operand Stack Overflow",10,0
+    emptyStack_error: db "Error: Insufficient Number of Arguments on Stack",10,0
+    prompt: db "calc: ",0
     input_length equ 81
     LINK_SIZE equ 5
-    prompt: db "calc: ",0
+    
 
 
 section .bss
@@ -145,7 +146,7 @@ get_input:
     jmp get_input
 
 .square_root:
-
+    
     jmp get_input
     
 .push_operand:           ; pushes the operand stored in buff onto the operand stack
@@ -153,7 +154,6 @@ get_input:
     push buff
     call buff_to_list
     add esp,4
-    push eax
     call push_op
     add esp,4
     jmp get_input
@@ -168,7 +168,7 @@ get_input:
     ret
     
     
-print_list:
+print_list:                 ; DELETE THIS FUNCTION BEFORE SUBMMISION
     push ebp
     mov ebp,esp
     mov ebx, [ebp+8]
@@ -183,24 +183,15 @@ print_list:
     print_and_flush arrow_symbol, format_string_s  ; prints ->
 
     popad
-
-debug2:
     
     cmp dword [ebx+next], 0
     jz done
-    mov ebx,dword [ebx+next]              ; makes ebx points to next link
+    mov ebx,dword [ebx+next]      ; makes ebx points to next link
     jmp printing_loop
     
     done:
     
-    push end_str
-    push format_string_s
-    call printf
-    add esp,8
-    
-    push dword [stdout]
-    call fflush
-    add esp,4
+    print_and_flush end_str, format_string_s
     
     popad
     mov esp, ebp              ; Restore caller state
@@ -234,6 +225,7 @@ get_length:
         
         
 to_numeric:                   ; gets a string buffer and returns the numeric representation of the buffer
+
     push ebp
     mov ebp,esp
     sub esp, 4                ; Leave space for local var on stack
@@ -258,32 +250,33 @@ to_numeric:                   ; gets a string buffer and returns the numeric rep
     
 not_a_character:
 
-    pop eax                        ; restore eax
+    pop eax                      ; restore eax
     
 do_not_restore:
 
-    sub eax,'0'                    ; convert from ASCII to number
+    sub eax,'0'                  ; convert from ASCII to number
     imul ebx,16
-    add ebx,eax                   ; ebx = ebx*16 + eax
+    add ebx,eax                  ; ebx = ebx*16 + eax
     loop next_digit              ; while (--ecx)
     mov [ebp-4], ebx
     popad
     mov eax, [ebp-4]
-    mov esp, ebp                  ; Restore caller state
-    pop ebp                       ; Restore caller state
+    mov esp, ebp                ; Restore caller state
+    pop ebp                    ; Restore caller state
     ret
         
         
-buff_to_list:                     ; gets a pointer to string and
-    push ebp                      ; returns a pointer to linked list
-    mov ebp,esp                   ; as suggested in class
+buff_to_list:                  ; gets a pointer to string and
+
+    push ebp                   ; returns a pointer to linked list
+    mov ebp,esp                ; as suggested in class
     mov ebx, dword [ebp+8]
     pushad
-    push ebx                      ; ebx holds pointer to input buffer
+    push ebx                   ; ebx holds pointer to input buffer
     call get_length
     add esp,4
     
-    test eax, 1                   ; checks if the number is odd or even
+    test eax, 1                ; checks if the number is odd or even
     jz buffer_isEven
     
     ; if reached here, buffer is not even, needs to pad with '0' at the beginning
@@ -308,32 +301,32 @@ buff_to_list:                     ; gets a pointer to string and
     
 buffer_isEven:
 
-    push ebx                      ; ebx holds pointer to input buffer
+    push ebx                   ; ebx holds pointer to input buffer
     call get_length
     add esp,4
     
-    mov ecx,eax                   ; ecx = length of buffer
+    mov ecx,eax                ; ecx = length of buffer
     
    
     
     add ebx,ecx
     .loop:
         
-        sub ebx,'0'
+        sub ebx,2
         push ebx
         call to_numeric
         add esp,4
         
-        mov edx, eax                      ; backup numeric value in another register before memory allocation
+        mov edx, eax                  ; backup numeric value in another register before memory allocation
         
         ; at this point EAX holds the numeric representation of the rightmost two digits of the buffer
         
-        pushad                            ; back up all general purpose registers
-        push 1                            ; 1 byte * 5 (num of link elements) = 5 bytes
+        pushad                        ; back up all general purpose registers
+        push 1                        ; 1 byte * 5 (num of link elements) = 5 bytes
         push LINK_SIZE
         call calloc
-        add esp, 8                        ; clean stack after calloc call
-        mov [curr], eax                   ; sets the curr pointer to calloc's return value
+        add esp, 8                    ; clean stack after calloc call
+        mov [curr], eax               ; sets the curr pointer to calloc's return value
         popad
         
         mov eax, [curr]
@@ -346,61 +339,61 @@ buffer_isEven:
         jz .first
 
         mov esi, [prev]
-        mov  dword [esi+next], eax              ; connect prev and current
+        mov  dword [esi+next], eax           ; connect prev and current
         jmp .loop.continue_buff_to_list
         
         .first:
         
         mov [head], eax
-        mov byte [firstFlag], 0                ; we've created the first link already, turns off the flag
+        mov byte [firstFlag], 0   ; we've created the first link already, turns off the flag
         
 .loop.continue_buff_to_list:
         
-        mov [prev], eax                   ; prepares prev for the next link assignment
+        mov [prev], eax          ; prepares prev for the next link assignment
         
-        dec ecx                   ; decrement ecx in addition to the loop decremantation
+        dec ecx                  ; decrement ecx in addition to the loop decremantation
         loop .loop, ecx
         
     ; returning from buff_to_list function
     
     popad
     mov eax,[head]
-    mov esp, ebp              ; Restore caller state
-    pop ebp                   ; Restore caller state
+    mov esp, ebp                 ; Restore caller state
+    pop ebp                      ; Restore caller state
     mov byte [firstFlag], 1      ; initializes the flag to 'true'
     ret
     
     
 
-push_op:                            ; if the stack is full an error will be printed, otherwise the head will be added
+push_op:                         ; if the stack is full an error will be printed, otherwise the head will be added
     push ebp
     mov ebp,esp                    
     pushad
-    mov ebx, [ebp+8]              ; get first argument (pointer to head of the linkedList)
+    mov ebx, [ebp+8]             ; get first argument (pointer to head of the linkedList)
     
-    .checkNotFull:                ; checks if the OperandStack is full, if it is full an error will be printed
-    cmp dword[counter],4         ;comparing between the stacksize (len) to counter.
+    .checkNotFull:               ; checks if the OperandStack is full, if it is full an error will be printed
+    cmp dword[counter],5         ;comparing between the stacksize (len) to counter.
     jnz .notFull
     pushad
     push fullStack_error
     call printf
     add esp,4
-    popad                           ; Restore caller state
-    mov esp,ebp                     ; Restore caller state
-    pop ebp                         ; Restore caller state
-    ret                             ; Restore caller state
+    popad                  ; Restore caller state
+    mov esp,ebp            ; Restore caller state
+    pop ebp                ; Restore caller state
+    ret                    ; Restore caller state
     
     .notFull:
     mov eax,dword[counter]         
     mov edx,4
     imul edx
-    add eax,op_stack            ;eax=opstack+(4*counter) eax points to the next avilable spot in the stack
+    add eax,op_stack           ;eax=opstack+(4*counter) eax points to the next avilable spot in the stack
     
-    mov dword [eax],dword ebx      ;placing the head of the list in the stack
-    inc dword[counter]             ;counter now increase by 1
-    popad                     ; Restore caller state
-    mov esp, ebp              ; Restore caller state
-    pop ebp                   ; Restore caller state
+    mov dword [eax],dword ebx  ;placing the head of the list in the stack
+    inc dword[counter]         ;counter now increase by 1
+    popad                      ; Restore caller state
+    mov esp, ebp               ; Restore caller state
+    pop ebp                    ; Restore caller state
     ret
 
 ;if the stack is empty an error will be printed, otherwise top element will be retrived (via eax register)
@@ -418,10 +411,10 @@ pop_op:
     push emptyStack_error
     call printf
     add esp,4
-    popad                           ; Restore caller state
-    mov esp,ebp                     ; Restore caller state
-    pop ebp                         ; Restore caller state
-    ret                             ; Restore caller state
+    popad                 ; Restore caller state
+    mov esp,ebp           ; Restore caller state
+    pop ebp               ; Restore caller state
+    ret                            ; Restore caller state
     
     .notEmpty:       ;the stack is not empty, we will remove the first element and store it in eax
     mov eax,dword[counter]
@@ -439,7 +432,37 @@ pop_op:
     mov esp, ebp              ; Restore caller state
     pop ebp                   ; Restore caller state
     ret
+    
+; frees the memory occupied by the list given as parameter, using recursion
+free_list:
 
+    push ebp
+    mov ebp, esp
+    pushad
+    mov ebx, [ebp+8]
+    
+    cmp dword [ebx+next],0  ; base case - single link linked list
+    jnz .not_a_single_link
+    push ebx
+    call free
+    add esp,4
+    jmp .done
+    
+    .not_a_single_link:     ; complex case
+    push dword [ebx+next]
+    call free_list
+    add esp,4
+    push ebx
+    call free
+    add esp,4
+    jmp .done
+    
+    .done:
+    popad
+    mov esp, ebp              ; Restore caller state
+    pop ebp                   ; Restore caller state
+    ret                       ; return
+    
     
 linkToNumber: ; converting the linked list to number (decimal). the number will be restored in eax
 
