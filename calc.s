@@ -105,7 +105,7 @@ get_length:
     ret
         
         
-to_numeric:                       ; gets a string buffer and returns the numeric representation of the buffer
+to_numeric:             ; gets a string buffer and returns the numeric representation of the buffer
     push ebp
     mov ebp,esp
     sub esp, 4          ; Leave space for local var on stack
@@ -114,14 +114,31 @@ to_numeric:                       ; gets a string buffer and returns the numeric
     mov esi,[ebp+8]
     mov ecx, 2                    ; string length is always 2
     xor ebx,ebx                   ; clear ebx
-    .next_digit:
+    next_digit:
     
     mov al,byte[esi]
     inc esi
-    sub al,'0'                    ; convert from ASCII to number
+
+deubg:
+    push eax                      ; backup al
+    sub eax, 'A'
+    cmp eax, 'F'
+    ja not_a_character
+    add eax, 'A'
+    sub eax, 7
+    add esp,4                     ; just "pops" eax without storing it
+    jmp do_not_restore
+    
+not_a_character:
+
+    pop eax                        ; restore al
+    
+do_not_restore:
+
+    sub eax,'0'                    ; convert from ASCII to number
     imul ebx,16
     add ebx,eax                   ; ebx = ebx*16 + eax
-    loop .next_digit              ; while (--ecx)
+    loop next_digit              ; while (--ecx)
     mov [ebp-4], ebx
     popad
     mov eax, [ebp-4]
