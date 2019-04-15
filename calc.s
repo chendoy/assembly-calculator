@@ -19,6 +19,7 @@ section .bss
     head: resd 1                   ; head of created linked list
     firstFlag: resb 1
     prev: resd 1
+    curr: resd 1
     
 
 
@@ -68,6 +69,8 @@ myCalc:
     call getInput
     cmp byte [buff], "q"
     jnz main_loop
+
+debug:
     
     popad                   ; Restore caller state
     mov esp, ebp            ; Restore caller state
@@ -79,9 +82,10 @@ main_loop:
     mov byte [firstFlag], 1      ; initializes the flag to 'true'
     call buff_to_list
     add esp,4
-    push eax
-
-    jmp myCalc
+    jmp debug
+    ;push eax
+    ;call 
+    
     
 get_length:
     push ebp
@@ -109,18 +113,18 @@ get_length:
     ret
         
         
-to_numeric:             ; gets a string buffer and returns the numeric representation of the buffer
+to_numeric:                   ; gets a string buffer and returns the numeric representation of the buffer
     push ebp
     mov ebp,esp
-    sub esp, 4          ; Leave space for local var on stack
+    sub esp, 4                ; Leave space for local var on stack
     pushad
     
     mov esi,[ebp+8]
-    mov ecx, 2                    ; string length is always 2
-    xor ebx,ebx                   ; clear ebx
+    mov ecx, 2                ; string length is always 2
+    xor ebx,ebx               ; clear ebx
     next_digit:
     
-    mov al,byte[esi]
+    movzx eax,byte[esi]
     inc esi
 
 deubg:
@@ -135,7 +139,7 @@ deubg:
     
 not_a_character:
 
-    pop eax                        ; restore al
+    pop eax                        ; restore eax
     
 do_not_restore:
 
@@ -204,21 +208,32 @@ buffer_isEven:
         
         ; at this point EAX holds the numeric representation of the rightmost two digits of the buffer
         
+        pushad                            ; back up all general purpose registers
         push 1                            ; 1 byte * 5 (num of link elements) = 5 bytes
         push LINK_SIZE
         call calloc
         add esp, 8                        ; clean stack after calloc call
-        mov [eax], dl                     ; take the lower byte of edx and store it in the data of the link
-        mov  dword [eax+data], 0          ; for now the next pointer is NULL
+        mov [curr], eax                   ; sets the curr pointer to calloc's return value
+        popad
         
-        mov  dword [prev+data], eax              ; connect prev and current
+        mov eax, [curr]
+        
+        mov [eax], edx                     ; take the lower byte of edx and store it in the data of the link
+        mov  dword [eax+next], 0          ; for now the next pointer is NULL
+        
         
         cmp byte [firstFlag], 1
-        jnz .not_first
+        jz .first
+        
+        mov  dword [prev+data], eax              ; connect prev and current
+        jmp .loop.continue_buff_to_list
+        
+        .first:
+        
         mov [head], eax
         mov byte [firstFlag], 0                ; we've created the first link already, turns off the flag
-
-        .not_first:
+        
+.loop.continue_buff_to_list:
         
         mov [prev], eax                   ; prepares prev for the next link assignment
         
