@@ -379,7 +379,7 @@ push_op:                            ; if the stack is full an error will be prin
     mov ebx, [ebp+8]              ; get first argument (pointer to head of the linkedList)
     
     .checkNotFull:                ; checks if the OperandStack is full, if it is full an error will be printed
-    cmp dword[counter],len         ;comparing between the stacksize (len) to counter.
+    cmp dword[counter],4         ;comparing between the stacksize (len) to counter.
     jnz .notFull
     pushad
     push fullStack_error
