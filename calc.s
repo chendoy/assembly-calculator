@@ -1,5 +1,10 @@
 section .rodata
-    format_string : db "%d", 10, 0
+    format_string_hex : db "%#04x",0
+    format_string_s : db "%s",0
+    arrow_symbol : db " -> ",0
+    end_str: db "END",10, 0
+    fullStack_error : db "Operand Stack Overflow ",10,0
+    emptyStack_error: db "Insufficent Number of Arguments on Stack",10,0
     input_length equ 81
     LINK_SIZE equ 5
 
@@ -9,7 +14,6 @@ section .bss
     buff_backup: resb 81           ; backup for odd buffer length
     op_stack: resb 20              ; operand stack
     len: equ $ - op_stack
-    counter: resd 1                ; op_stack elements counter, initialized to zero
     op_top: resd 1                 ; pointer to the op_stack pointer
     buff_len: resd 1               ; length of the buffer (used in buff_to_list)
     struc link
@@ -21,7 +25,8 @@ section .bss
     prev: resd 1
     curr: resd 1
     
-
+section .data
+  counter: dd 0                ; op_stack elements counter, initialized to zero
 
 section .text
 align 16
@@ -82,10 +87,72 @@ main_loop:
     mov byte [firstFlag], 1      ; initializes the flag to 'true'
     call buff_to_list
     add esp,4
-    jmp debug
-    ;push eax
-    ;call 
     
+    ;----------DEBUG---------;
+    
+    push eax
+    call print_list
+    add esp,4
+    
+    ;----------DEBUG---------;
+    
+    jmp debug
+    
+print_list:
+    push ebp
+    mov ebp,esp
+    mov ebx, [ebp+8]
+    pushad
+        
+    printing_loop:
+    
+   
+    
+    pushad
+    
+    movzx edx, byte [ebx]
+    push edx
+    push format_string_hex
+    call printf
+    add esp,8
+    
+    push dword [stdout]
+    call fflush
+    add esp,4
+    
+    push arrow_symbol
+    push format_string_s
+    call printf
+    add esp,8
+    
+    push dword [stdout]
+    call fflush
+    add esp,4
+    
+    popad
+
+debug2:
+    
+    cmp dword [ebx+next], 0
+    jz done
+    mov ebx,dword [ebx+next]              ; makes ebx points to next link
+    jmp printing_loop
+    
+    done:
+    
+    push end_str
+    push format_string_s
+    call printf
+    add esp,8
+    
+    push dword [stdout]
+    call fflush
+    add esp,4
+    
+    popad
+    mov esp, ebp              ; Restore caller state
+    pop ebp                   ; Restore caller state
+    ret
     
 get_length:
     push ebp
@@ -127,7 +194,6 @@ to_numeric:                   ; gets a string buffer and returns the numeric rep
     movzx eax,byte[esi]
     inc esi
 
-deubg:
     push eax                      ; backup al
     sub eax, 'A'
     cmp eax, 'F'
@@ -219,14 +285,15 @@ buffer_isEven:
         
         mov eax, [curr]
         
-        mov [eax], edx                     ; take the lower byte of edx and store it in the data of the link
+        mov [eax], dl                     ; take the lower byte of edx and store it in the data of the link
         mov  dword [eax+next], 0          ; for now the next pointer is NULL
         
         
         cmp byte [firstFlag], 1
         jz .first
-        
-        mov  dword [prev+next], eax              ; connect prev and current
+
+        mov esi, [prev]
+        mov  dword [esi+next], eax              ; connect prev and current
         jmp .loop.continue_buff_to_list
         
         .first:
@@ -248,3 +315,77 @@ buffer_isEven:
     mov esp, ebp              ; Restore caller state
     pop ebp                   ; Restore caller state
     ret
+    
+    
+
+push_op:  ; if the stack is full an error will be printed, otherwise the head will be added
+    push ebp
+    mov ebp,esp                    
+    pushad
+    mov ebx, [ebp+8]              ; get first argument (pointer to head of the linkedList)
+    
+    .checkNotFull:                ; checks if the OperandStack is full, if it is full an error will be printed
+    cmp dword[counter],len         ;comparing between the stacksize (len) to counter.
+    jnz .notFull
+    pushad
+    push fullStack_error
+    call printf
+    add esp,4
+    popad                           ; Restore caller state
+    mov esp,ebp                     ; Restore caller state
+    pop ebp                         ; Restore caller state
+    ret                             ; Restore caller state
+    
+    .notFull:
+    mov eax,dword[counter]         
+    mov edx,4
+    imul edx
+    add eax,op_stack            ;eax=opstack+(4*counter) eax points to the next avilable spot in the stack
+    
+    mov dword [eax],dword ebx      ;placing the head of the list in the stack
+    inc dword[counter]             ;counter now increase by 1
+    popad                     ; Restore caller state
+    mov esp, ebp              ; Restore caller state
+    pop ebp                   ; Restore caller state
+    ret
+
+;if the stack is empty an error will be printed, otherwise top element will be retrived (via eax register)
+pop_op: 
+
+    push ebp       ;init
+    mov ebp,esp    ;init
+    sub esp,4      ; Leave space for local var on stack
+    pushad         ;init
+    
+    .checkNotEMpty:        ; checks if the OperandStack is empty. if it is, error will be printed.
+    cmp dword[counter],0
+    jnz .notEmpty
+    pushad
+    push emptyStack_error
+    call printf
+    add esp,4
+    popad                           ; Restore caller state
+    mov esp,ebp                     ; Restore caller state
+    pop ebp                         ; Restore caller state
+    ret                             ; Restore caller state
+    
+    .notEmpty:       ;the stack is not empty, we will remove the first element and store it in eax
+    mov eax,dword[counter]
+    sub eax,1
+    mov edx,4
+    imul edx
+    add eax,op_stack     ;eax = opstack+(4*(counter-1)). eax point to the top element at the stack 
+    
+    mov eax,[eax] ;eax holds now the pointer to linkedlist of the top element at the stack
+    mov [ebp-4],eax ;local variable holds now the pointer to linkedlist of the top element at the stack
+    
+    dec dword[counter]             ;counter decrease by 1    
+    popad                     ; Restore caller state
+    mov eax,[ebp-4] ; store the popped element pointer (to linkedlist) in eax 
+    mov esp, ebp              ; Restore caller state
+    pop ebp                   ; Restore caller state
+    ret
+
+    
+linkToNumber: ; converting the linked list to number (decimal). the number will be restored in eax
+
