@@ -1,6 +1,7 @@
 section .rodata
     format_string_hex : db "%#04X",0
     format_string_s : db "%s",0
+    format_string_d: db "%d",0
     arrow_symbol : db " -> ",0             ; DELETE BEFORE SUBMMISION
     end_str: db "END",10, 0
     fullStack_error : db "Error: Operand Stack Overflow",10,0
@@ -121,26 +122,21 @@ get_input:
     jmp .push_operand      ; default case, probable a number - push it to operand stack
 
 .debug_label:
-    push 0         ; carry
-    call getInput
-    push buff
-    call buff_to_list
-    add esp,4
-    push eax
-    call getInput
-    push buff
-    call buff_to_list
-    add esp,4
-    push eax
-    call addLinks
-    add esp,4
-    push eax
-    call print_list
-    add esp,4
+    
     jmp .debug_label
     
 .addition:
 
+    call pop_op
+    push eax
+    call pop_op
+    push eax
+    call addLists
+    add esp,8
+    push eax
+    call print_list
+    add esp,4
+    
     jmp get_input
 
 .pop_and_print:
@@ -172,6 +168,7 @@ get_input:
     push buff
     call buff_to_list
     add esp,4
+    push eax
     call push_op
     add esp,4
     jmp get_input
@@ -516,13 +513,111 @@ linkToNumber: ; converting the linked list to number (decimal). the number will 
     ret
     
 
-; [IN]: 2 linked list representing numbers
+; [IN]: 2 linked list pinter representing numbers
 ; [OUT]: linked list representing the addition, stored in EAX
-; EAX - carry register, EBX - first list link, ECX - second list link
 addLists:
     push ebp
     mov ebp,esp
     pushad
+    mov ebx, [ebp+8]      ; EBX - pointer to 1'st list
+    mov ecx, [ebp+12]     ; ECX - pointer to 2'nd list
+    push ebx
+    call getListLen
+    add esp,4
+    mov esi,eax           ; ESI holds the length of first list
+    push ecx
+    call getListLen
+    add esp,4
+    mov edi, eax          ; EDI holds the length of second list
+    cmp esi, edi
+    jle .edi_is_bigger_equal
+    jmp .max_known
+    .edi_is_bigger_equal:
+    mov esi,edi
+    
+    .max_known:     ; at this point, ESI = MAX(list1.length, list2.length)
+    
+    ; prepares dummy link [0:0000]->NULL
+    pushad
+    push 1
+    push LINK_SIZE
+    call calloc
+    add esp,8
+    mov edx,eax         ; EDX -dummy link
+    popad
+    
+    mov edi,0           ; EDI - carry value
+    
+    .loop:
+    
+    push edi     ; carry value
+    push ebx     ; first list
+    push ecx     ; second list
+    call addLinks
+    add esp,12   ; clean stack
+    
+    
+    mov edi,[eax+next]
+    movzx edi, byte [edi]     ; now edi hold the returend carry from 'addLinks'
+    mov dword [eax+next],0
+    
+    cmp byte [firstFlag], 1
+    jz .first
+
+    jmp .loop.continue_add_lists
+        
+    .first:
+    
+    mov [head], eax
+    mov byte [firstFlag], 0   ; we've created the first link already, turns off the flag
+    mov dword [prev], eax
+        
+    .loop.continue_add_lists:
+    
+    mov [prev+next], eax
+    mov dword [prev], eax
+    
+    cmp dword [ebx+next],0    ; list 1 has ended
+    jz .list1_ended
+    
+    mov ebx,[ebx+next]        ; advance list1
+    jmp .list1_not_ended
+    
+    .list1_ended:
+    mov ebx,edx
+    
+    .list1_not_ended:
+    
+    cmp dword [ecx+next],0    ; list 2 has ended
+    jz .list2_ended
+
+    mov ecx,[ecx+next]        ; advance list2
+    jmp .list2_not_ended
+    
+    
+    .list2_ended:
+    mov ecx,edx
+    
+    .list2_not_ended:
+    
+    dec esi
+    cmp esi,0
+    jnz .loop
+    
+    cmp edi,0
+    jz .done
+    
+    ; creating new link for (non empty) carry outside loop
+    
+    
+    .done:
+    
+    popad
+    mov esp,ebp
+    pop ebp
+    mov eax,[head]
+    mov byte [firstFlag], 1
+    ret
     
     
 ; auxillary function to addLists
@@ -568,4 +663,36 @@ addLinks:
     mov esp, ebp
     pop ebp
     ret
+    
+; [IN]: a pointer to a linked list
+; [OUT]: length of the list
+getListLen:
+    push ebp
+    mov ebp, esp
+    sub esp,4
+    pushad
+    mov ebx, [ebp+8]
+    xor ecx,ecx
+    
+    cmp dword [ebx+next], 0
+    jnz .not_a_signle_link
+    add ecx,1
+    jmp .done
+    
+    .not_a_signle_link:
+    add ecx,1
+    mov edx, [ebx+next]
+    push edx
+    call getListLen
+    add esp,4
+    add ecx,eax
+    jmp .done
+    
+    .done:
+    mov [ebp-4],ecx
+    popad
+    mov eax, [ebp-4]
+    mov esp, ebp              ; Restore caller state
+    pop ebp                   ; Restore caller state
+    ret     
     
