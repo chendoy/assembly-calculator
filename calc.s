@@ -518,6 +518,7 @@ linkToNumber: ; converting the linked list to number (decimal). the number will 
 addLists:
     push ebp
     mov ebp,esp
+    sub esp,4             ; local variable
     pushad
     mov ebx, [ebp+8]      ; EBX - pointer to 1'st list
     mov ecx, [ebp+12]     ; ECX - pointer to 2'nd list
@@ -543,8 +544,9 @@ addLists:
     push LINK_SIZE
     call calloc
     add esp,8
-    mov edx,eax         ; EDX -dummy link
+    mov [ebp-4],eax
     popad
+    mov edx,[ebp-4]         ; EDX -dummy link
     
     mov edi,0           ; EDI - carry value
     
@@ -609,6 +611,13 @@ addLists:
     
     ; creating new link for (non empty) carry outside loop
     
+    push 1
+    push LINK_SIZE
+    call calloc
+    add esp,8
+    mov edx, edi
+    mov byte [eax], dl
+    mov [prev+next], eax
     
     .done:
     
