@@ -134,8 +134,12 @@ get_input:
     call addLists
     add esp,8
     push eax
-    call print_list
+    call push_op
     add esp,4
+    
+    push eax           ; DEBUGGING
+    call print_list    ; DEBUGGIG
+    add esp,4          ; DEBUGGING
     
     jmp get_input
 
@@ -573,11 +577,17 @@ addLists:
     mov [head], eax
     mov byte [firstFlag], 0   ; we've created the first link already, turns off the flag
     mov dword [prev], eax
+    jmp .not_first
         
     .loop.continue_add_lists:
     
-    mov [prev+next], eax
+    push edx
+    mov edx,[prev]
+    mov [edx+next], eax
+    pop edx
     mov dword [prev], eax
+    
+    .not_first:
     
     cmp dword [ebx+next],0    ; list 1 has ended
     jz .list1_ended
@@ -617,7 +627,8 @@ addLists:
     add esp,8
     mov edx, edi
     mov byte [eax], dl
-    mov [prev+next], eax
+    mov esi,[prev]
+    mov [esi+next], eax
     
     .done:
     
