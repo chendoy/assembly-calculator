@@ -1,9 +1,11 @@
 section .rodata
-    format_string_hex : db "%#04X",0
+    format_string_hex : db "%02X",0
+    format_string_hex_no_leading : db "%01X",0
     format_string_s : db "%s",0
     format_string_d: db "%d",0
     arrow_symbol : db " -> ",0             ; DELETE BEFORE SUBMMISION
     end_str: db "END",10, 0
+    newline: db 10,0
     fullStack_error : db "Error: Operand Stack Overflow",10,0
     emptyStack_error: db "Error: Insufficient Number of Arguments on Stack",10,0
     prompt: db "calc: ",0
@@ -32,6 +34,7 @@ section .data
   counter: dd 0                ; op_stack elements counter, initialized to zero
   
 %macro print_and_flush 2
+    
     push %1
     push %2
     call printf               ; arg0 - content, arg1 - format
@@ -40,6 +43,16 @@ section .data
     push dword [stdout]       ; flushes stdout (in case no '\n' is used)
     call fflush
     add esp,4
+    
+%endmacro
+
+%macro print_newline 0
+    pushad
+    push newline
+    push format_string_s
+    call printf
+    add esp,8
+    popad
 %endmacro
 
 section .text
@@ -86,15 +99,12 @@ myCalc:
     pushad                ; save caller state
     
 get_input:
-    
+
+    pushad
     print_and_flush prompt, format_string_s
     
     call getInput         ; fill buff variable with user input
-    
-    ; -----DEBUG OPTION----
-    cmp byte [buff], "x"
-    jz .debug_label
-    
+        
     cmp byte [buff], "q"  
     jz .exit
     
@@ -119,11 +129,8 @@ get_input:
     cmp word [buff], "sr"
     jz .square_root
     
-    jmp .push_operand      ; default case, probable a number - push it to operand stack
+    jmp .push_operand      ; default case
 
-.debug_label:
-    
-    jmp .debug_label
     
 .addition:
 
@@ -137,14 +144,21 @@ get_input:
     call push_op
     add esp,4
     
-    push eax           ; DEBUGGING
-    call print_list    ; DEBUGGIG
-    add esp,4          ; DEBUGGING
-    
     jmp get_input
 
 .pop_and_print:
 
+    call pop_op
+    mov ebx,eax   ; ebx - pointer to list
+    add esp,4
+    push ebx
+    call getListLen  ; eax - length of list
+    add esp,4
+    push eax
+    push ebx
+    call print_op
+    add esp,8
+    print_newline
     jmp get_input
 
 .duplicate:
@@ -161,6 +175,12 @@ get_input:
 
 .number_of_1_bits:   
 
+    call pop_op
+    push eax
+    call countSetBits
+    add esp,4
+    
+    
     jmp get_input
 
 .square_root:
@@ -712,7 +732,42 @@ getListLen:
     mov [ebp-4],ecx
     popad
     mov eax, [ebp-4]
-    mov esp, ebp              ; Restore caller state
-    pop ebp                   ; Restore caller state
+    mov esp, ebp            ; Restore caller state
+    pop ebp                 ; Restore caller state
     ret     
+    
+print_op:
+    push ebp
+    mov ebp, esp
+    pushad
+    mov ebx, [ebp+8]   ; ebx - pointer to list
+
+
+    
+    cmp dword [ebx+next], 0
+    jnz .not_a_signle_link
+    
+    .single_link:
+    
+    movzx ebx, byte [ebx]
+    print_and_flush ebx, format_string_hex_no_leading
+    jmp .done
+    
+    .not_a_signle_link:
+    mov edx, [ebx+next]  ; edx point to the rest of the list
+    push edx
+    call print_op
+    add esp,4
+    pushad
+    movzx edx, byte [ebx]
+    print_and_flush edx, format_string_hex
+    popad
+    jmp .done
+    
+    .done:
+    
+    popad
+    mov esp,ebp
+    pop ebp
+    ret
     

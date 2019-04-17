@@ -3,6 +3,7 @@
 # TO_DO:
 
 - restore stack state when addition fails
-- converting from list to string
+- pop_and_print when stuck empty - segmentation fault
+- input may contain leading zeros
 - free memory: in pop, addition fails,...
 - debug mode
