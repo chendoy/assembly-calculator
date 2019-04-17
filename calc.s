@@ -90,6 +90,10 @@ get_input:
     
     call getInput         ; fill buff variable with user input
     
+    ; -----DEBUG OPTION----
+    cmp byte [buff], "x"
+    jz .debug_label
+    
     cmp byte [buff], "q"  
     jz .exit
     
@@ -115,11 +119,25 @@ get_input:
     jz .square_root
     
     jmp .push_operand      ; default case, probable a number - push it to operand stack
-    
-    
+
+.debug_label:
+    push 0         ; carry
+    call getInput
+    push buff
     call buff_to_list
     add esp,4
-    
+    push eax
+    call getInput
+    push buff
+    call buff_to_list
+    add esp,4
+    push eax
+    call addLinks
+    add esp,4
+    push eax
+    call print_list
+    add esp,4
+    jmp .debug_label
     
 .addition:
 
@@ -158,8 +176,6 @@ get_input:
     add esp,4
     jmp get_input
 
-    
- 
 .exit:
     
     popad                   ; Restore caller state
@@ -498,3 +514,58 @@ linkToNumber: ; converting the linked list to number (decimal). the number will 
     mov esp, ebp              ; Restore caller state
     pop ebp                   ; Restore caller state
     ret
+    
+
+; [IN]: 2 linked list representing numbers
+; [OUT]: linked list representing the addition, stored in EAX
+; EAX - carry register, EBX - first list link, ECX - second list link
+addLists:
+    push ebp
+    mov ebp,esp
+    pushad
+    
+    
+; auxillary function to addLists
+; [IN]: 2 signle links and a carry stored as a value
+; [OUT]: linked list with 2 links (sum link and a carry link)
+addLinks:
+    push ebp
+    mov ebp,esp
+    sub esp,4 
+    pushad
+    mov dword [curr],0
+    xor eax,eax              ; clear eax
+    mov eax, [ebp+8]         ; load first argument (pointer to 1'st link)
+    mov ebx, [ebp+12]        ; load second argument (pointer to 2'nd link)
+    mov ecx, [ebp+16]        ; load third argument (value of carry)
+                   ; make place for local variable (pointer to result list)
+    movzx eax, byte [eax]    ; dereference first pointer
+    movzx ebx, byte [ebx]    ; dereference second pointer
+    add eax, ebx             ; eax = eax+ebx
+    add eax, ecx             ; eax = eax+ecx (carry)
+    mov edx, eax             ; backup eax before calloc call
+    pushad
+    push 1
+    push LINK_SIZE
+    call calloc
+    add esp,8
+    mov [curr], eax               ; sets the curr pointer to calloc's return value
+    popad
+    mov eax, [curr]
+    mov byte [eax], dl       ; store sum value in first link
+    push edx
+    mov esi, eax             ; backup first link pointer
+    push 1
+    push LINK_SIZE
+    call calloc              ; eax gets another pointer to allocated memory
+    add esp,8
+    pop edx
+    mov byte [eax], dh
+    mov dword [esi+next], eax
+    mov [ebp-4], esi
+    popad
+    mov eax, [ebp-4]
+    mov esp, ebp
+    pop ebp
+    ret
+    
