@@ -1288,3 +1288,17 @@ mulListByList:
     mov esp,ebp
     pop ebp
     ret
+
+; [IN]: a pointer to a list
+; [OUT]: 2^list
+two_power:
+    push ebp
+    mov ebp,esp
+    pushad
+    
+    
+    
+    popad
+    mov esp,ebp
+    pop ebp
+    ret
