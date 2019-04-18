@@ -1228,6 +1228,7 @@ mulLinkByList:
 mulListByList:
     push ebp
     mov ebp,esp
+    sub esp,4
     pushad
     
     mov ebx, [ebp+8]    ; ebx - pointer to 1'st list
@@ -1246,7 +1247,39 @@ mulListByList:
     mov [head] ,eax
     jmp .done
     
-    .1st_list_is_not_a_link:
+    .1st_list_is_not_a_link:  ; complex case
+    
+    push ebx
+    push ecx
+    call mulLinkByList
+    add esp,8
+    mov edx, eax        ; edx -pointer to [first(list1) * list2]
+    
+    mov ebx, [ebx+next]
+    push ecx
+    push ebx
+    call mulListByList
+    add esp,8           
+    mov esi, eax        ; esi - rest(list2)*list2
+    
+    ; creating empty link [00..0] to truncate to result list
+    
+    pushad
+    push 1
+    push LINK_SIZE
+    call calloc
+    add esp,8
+    mov [ebp-4], eax
+    popad
+    mov eax, [ebp-4]
+    mov [eax+next],esi
+    mov byte [eax], 0
+    
+    push eax
+    push edx
+    call addLists
+    add esp,8
+    mov [head],eax
     
     .done:
     
