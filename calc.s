@@ -134,6 +134,16 @@ get_input:
     
 .addition:
 
+    cmp dword[counter],2 ;check op stack has enough elements to perform addition
+    jge .continue_addition
+    pushad
+    push emptyStack_error
+    call printf
+    add esp,4
+    jmp .done
+    
+    
+.continue_addition:
     call pop_op
     push eax
     call pop_op
@@ -143,6 +153,8 @@ get_input:
     push eax
     call push_op
     add esp,4
+    
+    .done:
     
     jmp get_input
 
@@ -163,7 +175,29 @@ get_input:
 
 .duplicate:
 
+    cmp dword[counter],0  ;checks if there are elemnt at stack
+    jnz .continue_duplicate 
+    
+    push emptyStack_error   ;print empty stack error
+    call printf
+    add esp,4
+    jmp .done_duplicate
+    
+    .continue_duplicate:
+    push ebx
+    mov ebx,dword[op_top]
+    push dword[ebx]
+    call duplicate
+    add esp,4
+    pop ebx
+    
+    push eax       ;pushing the duplicated list to operand stack
+    call push_op
+    add esp,4
+    
+    .done_duplicate:
     jmp get_input
+
 
 .mul_and_exp:
 
@@ -427,7 +461,7 @@ push_op:                         ; if the stack is full an error will be printed
     mov edx,4
     imul edx
     add eax,op_stack           ;eax=opstack+(4*counter) eax points to the next avilable spot in the stack
-    
+    mov [op_top],eax         ;updating stack's top pointer
     mov dword [eax],dword ebx  ;placing the head of the list in the stack
     inc dword[counter]         ;counter now increase by 1
     popad                      ; Restore caller state
@@ -461,7 +495,7 @@ pop_op:
     mov edx,4
     imul edx
     add eax,op_stack     ;eax = opstack+(4*(counter-1)). eax point to the top element at the stack 
-    
+    mov [op_top],eax         ;updating stack's top pointer
     mov eax,[eax] ;eax holds now the pointer to linkedlist of the top element at the stack
     mov [ebp-4],eax ;local variable holds now the pointer to linkedlist of the top element at the stack
     
@@ -858,3 +892,71 @@ countSetBitsInLink:
     mov esp,ebp
     pop ebp
     ret
+    
+;gets top's stack link as arg ( we dont handle errors here)
+duplicate:
+    push ebp
+    mov ebp,esp
+    sub esp,8             ; local variable
+    pushad
+    mov ebx, [ebp+8]      ; EBX - pointer to top stack list
+    push ebx
+    call getListLen
+    add esp,4
+    mov ecx,eax           ; Ecx holds the length of first list
+    
+    pushad
+    push 1                 ;preparing the first link of the new linked list
+    push LINK_SIZE
+    call calloc
+    add esp,8
+    mov [ebp-4],eax        ; the local variable holds now the "head" of the new list
+    mov [prev],eax         ; the "prev" label points now to the new list's first element
+    popad
+    
+    mov dl,byte[ebx]       ;copy original's list value at the current link
+    mov edi,dword[ebp-4]
+    mov byte[edi],dl
+    mov dword[edi+next],0   ;next link point to zero right now
+    
+    mov ebx,dword[ebx+next]   ; forward ebx to point the next original link 
+    
+
+    sub ecx,1              ; because we handled the first link
+    
+    .loop:
+    cmp ecx,0
+    jz .done
+    dec ecx ;if not done dec ecx 
+     
+    pushad
+    push 1
+    push LINK_SIZE
+    call calloc
+    add esp,8
+    mov [ebp-8],eax           ;local var holds eax. 
+    popad
+    mov eax,[ebp-8]           ;restore eax
+    
+    mov dl,byte[ebx]        ;copy original's list value to the current link
+    mov byte[eax],dl
+    
+    mov esi,[prev]         ;linking the prev link to current link
+    mov dword[esi+next],dword eax
+    
+    mov ebx,dword[ebx+next]   ; forward ebx to be the next original link 
+  
+    mov [prev],eax         ; the "prev" label points now to the new list's first element
+ 
+    jmp .loop
+    
+    
+    .done:
+    mov eax,[prev]
+    mov dword[eax+next],0       ;updating the last link to point to null
+    popad
+    mov eax,[ebp-4]
+    mov esp,ebp
+    pop ebp
+    ret
+
