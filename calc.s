@@ -177,7 +177,7 @@ get_input:
 
     call pop_op
     push eax
-    call countSetBitsInLink
+    call countSetBits
     add esp,4
     push eax
     call push_op
@@ -778,8 +778,36 @@ print_op:
 countSetBits:
     push ebp
     mov ebp,esp
+    sub esp,4
     pushad
+    mov ebx, [ebp+8]    ; Leave space for local var on stack
     
+    cmp dword [ebx+next], 0
+    jnz .not_a_signle_link
+    
+    .single_link:
+    
+    push ebx
+    call countSetBitsInLink
+    add esp,4
+    jmp .done
+    
+    .not_a_signle_link:
+    
+    push ebx
+    call countSetBitsInLink
+    add esp,4            
+    mov ecx, eax         ; ecx is list1 result
+    mov edx, [ebx+next]  ; edx point to the rest of the list
+    push edx
+    call countSetBits
+    add esp,4            ; eax is list2 result
+    push ecx
+    push eax
+    call addLists
+    add esp,8
+    
+    .done:
     
     popad
     mov esp,ebp
@@ -792,7 +820,7 @@ countSetBits:
 countSetBitsInLink:
     push ebp
     mov ebp,esp
-    sub esp,4                     ; Leave space for local var on stack
+    sub esp,4             ; Leave space for local var on stack
     pushad
     mov ebx, [ebp+8]
     
