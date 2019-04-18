@@ -1162,6 +1162,7 @@ mulLinks:
 mulLinkByList:
     push ebp
     mov ebp, esp
+    sub esp,4
     pushad
     
     mov ebx, [ebp+8]    ; ebx - pointer to list
@@ -1186,7 +1187,7 @@ mulLinkByList:
     push ebx
     call mulLinks
     add esp,8
-    mov edx, eax        ; edx - first(list) * link
+    mov edx, eax        ; edx -pointer to [first(list) * link]
     
     mov ebx, [ebx+next]
     push ecx
@@ -1197,17 +1198,22 @@ mulLinkByList:
     
     ; creating empty link [00..0] to truncate to result list
     
+    pushad
     push 1
     push LINK_SIZE
     call calloc
     add esp,8
+    mov [ebp-4], eax
+    popad
+    mov eax, [ebp-4]
     mov [eax+next],esi
     mov byte [eax], 0
     
-    push esi
+    push eax
     push edx
     call addLists
     add esp,8
+    mov [head],eax
     
     .done:
     
