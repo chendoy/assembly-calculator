@@ -177,9 +177,11 @@ get_input:
 
     call pop_op
     push eax
-    call countSetBits
+    call countSetBitsInLink
     add esp,4
-    
+    push eax
+    call push_op
+    add esp,4
     
     jmp get_input
 
@@ -770,4 +772,58 @@ print_op:
     mov esp,ebp
     pop ebp
     ret
+
+; [IN]: a pointer to a operand linked list
+; [OUT]: a pointer to a result list with the value of number of set bits in input list
+countSetBits:
+    push ebp
+    mov ebp,esp
+    pushad
     
+    
+    popad
+    mov esp,ebp
+    pop ebp
+    ret
+
+; auxillary function for countSetBits from above
+; [IN]: a pointer to a single link
+; [OUT]: a pointer to a reslt list with the value of number of set bits in input list
+countSetBitsInLink:
+    push ebp
+    mov ebp,esp
+    sub esp,4                     ; Leave space for local var on stack
+    pushad
+    mov ebx, [ebp+8]
+    
+    movzx eax, byte [ebx]
+    mov ecx,0              ;is the counter register
+    xor edx,edx            ;is done to make edx 0, you can also do mov edx,0
+    .notDoneWithNumber:
+    cmp eax,0
+    je .done
+    mov edx,eax            ;edx is here a compare register, not nice, but it works
+    shr eax,1              ;we push all the bits one place to the right, bits at position 1 will be "pushed out of the byteword"
+    and edx,1h             ;make sure we only get, wether the last bit is set or not(thats called bitmaking) 
+    cmp edx,0h
+    jz .notDoneWithNumber   ;if the found value is a zero we can skip the inc of the count register
+    inc ecx
+    jmp .notDoneWithNumber
+    
+    .done:                      ;register ecx will now hold hamming weight
+        
+    ; creating the result link
+    push ecx
+    push 1
+    push LINK_SIZE
+    call calloc              ; eax gets another pointer to allocated memory
+    add esp,8
+    pop ecx
+    mov byte [eax], cl
+    mov [ebp-4], eax
+    
+    popad
+    mov eax, [ebp-4]
+    mov esp,ebp
+    pop ebp
+    ret
