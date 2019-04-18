@@ -263,9 +263,21 @@ get_input:
 
 .mul_and_exp:
 
+    call pop_op
+    push eax
+    call pop_op
+    push eax
+    call mulLinkByList
+    add esp,8
+    push eax
+    call push_op
+    add esp,4
+    
     jmp get_input
 
 .mul_and_exp_oppo:
+
+    
 
     jmp get_input
 
@@ -519,6 +531,7 @@ buffer_isEven:
     mov eax,[head]
     push eax               ;triming leading zeros
     call trim_leading_zeros
+    add esp,4
     mov esp, ebp                 ; Restore caller state
     pop ebp                      ; Restore caller state
     mov byte [firstFlag], 1      ; initializes the flag to 'true'
@@ -1091,5 +1104,115 @@ trim_leading_zeros:
     popad
     mov eax,[head]
     mov esp,ebp
+    pop ebp
+    ret
+
+mulLinks:
+    push ebp
+    mov ebp,esp
+    pushad
+    mov eax, [ebp+8] ; arg0 - first link
+    mov ebx, [ebp+12] ; arg1 - second link
+    movzx eax, byte [eax]
+    movzx ebx, byte [ebx]
+    imul ebx         ; edx = eax * ebx
+    mov edx, eax
+    
+    ; creating first link
+    
+    pushad
+    push 1
+    push LINK_SIZE
+    push edx
+    call calloc      ; eax - pointer to first result link
+    pop edx
+    add esp,8
+    mov dword [head], eax
+    mov byte [eax], dl
+    popad
+    
+    ; creating second link
+    
+    pushad
+    push 1
+    push LINK_SIZE
+    push edx
+    call calloc
+    pop edx
+    add esp,8
+    mov byte [eax], dh
+    
+    
+    mov ecx, [head]
+    mov [ecx+next], eax
+    popad
+    
+    
+    popad
+    mov eax,[head]
+    push eax
+    call trim_leading_zeros
+    add esp,4
+    mov esp,ebp
+    pop ebp
+    ret
+    
+; [IN]: link (arg0) , list(arg1)
+; [OUT]: link * list
+mulLinkByList:
+    push ebp
+    mov ebp, esp
+    pushad
+    
+    mov ebx, [ebp+8]    ; ebx - pointer to list
+    mov ecx, [ebp+12]   ; ecx - pointer to link
+    
+    
+    cmp dword [ebx+next], 0
+    jnz .not_a_signle_link
+    
+    .single_link:
+    
+    push ecx
+    push ebx
+    call mulLinks
+    add esp,8
+    mov [head] ,eax
+    jmp .done
+    
+    .not_a_signle_link:
+    
+    push ecx
+    push ebx
+    call mulLinks
+    add esp,8
+    mov edx, eax        ; edx - first(list) * link
+    
+    mov ebx, [ebx+next]
+    push ecx
+    push ebx
+    call mulLinkByList
+    add esp,8           
+    mov esi, eax        ; esi - rest(list)*link
+    
+    ; creating empty link [00..0] to truncate to result list
+    
+    push 1
+    push LINK_SIZE
+    call calloc
+    add esp,8
+    mov [eax+next],esi
+    mov byte [eax], 0
+    
+    push esi
+    push edx
+    call addLists
+    add esp,8
+    
+    .done:
+    
+    popad
+    mov eax, [head]
+    mov esp, ebp
     pop ebp
     ret
