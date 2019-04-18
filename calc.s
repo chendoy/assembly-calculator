@@ -9,8 +9,11 @@ section .rodata
     fullStack_error : db "Error: Operand Stack Overflow",10,0
     emptyStack_error: db "Error: Insufficient Number of Arguments on Stack",10,0
     prompt: db "calc: ",0
+    debug_str: db "-d",0
     input_length equ 81
     LINK_SIZE equ 5
+    debug_result_pushed: db "DEBUG: RESULT PUSHED ",0
+    debug_input_read: db "DEBUG: NUMBER READ %s",0
     
 
 
@@ -29,6 +32,7 @@ section .bss
     firstFlag: resb 1
     prev: resd 1
     curr: resd 1
+    debug_mode: resb 1
     
 section .data
   counter: dd 0                ; op_stack elements counter, initialized to zero
@@ -76,7 +80,8 @@ getInput:
     push input_length
     push buff
     call fgets
-    add esp,12                     ; clean stack after function call
+    add esp,12              ; clean stack after function call
+    
     popad                   ; Restore caller state
     mov esp, ebp            ; Restore caller state
     pop ebp                 ; Restore caller state
@@ -84,9 +89,32 @@ getInput:
     
   
 main:
+    mov byte [debug_mode], 0     ; debug mode is off by default
     mov byte [firstFlag], 1      ; initializes the flag to 'true'
     mov eax, op_stack
-    mov dword [op_top], eax     ; initially op_top points to op_stack
+    mov dword [op_top], eax      ; initially op_top points to op_stack
+    
+    ; infering debug mode
+    
+    mov ecx, [esp+4]
+    mov edx, [esp+8]
+    
+    cmp ecx,2
+    jge .look_for_debug_flag
+    jmp .no_debug_flag
+    
+    .look_for_debug_flag:
+    
+    add edx,4 ; place for first argument
+    mov edx, [edx]
+    mov edx, [edx]
+    mov ebx, [debug_str]
+    cmp dx, bx
+    jnz .no_debug_flag
+    mov byte [debug_mode], 1
+    
+    .no_debug_flag:
+    
     call myCalc
     mov     eax,1
     mov     ebx,0
@@ -117,10 +145,10 @@ get_input:
     cmp byte [buff], "d"
     jz .duplicate
     
-    cmp byte [buff], "^"
+    cmp byte [buff], "^"   ; todo: insert debug mode
     jz .mul_and_exp
     
-    cmp byte [buff], "v"
+    cmp byte [buff], "v"   ; todo: insert debug mode
     jz .mul_and_exp_oppo
     
     cmp byte [buff], "n"
@@ -140,7 +168,8 @@ get_input:
     push emptyStack_error
     call printf
     add esp,4
-    jmp .done
+    popad
+    jmp .done_addition
     
     
 .continue_addition:
@@ -150,16 +179,44 @@ get_input:
     push eax
     call addLists
     add esp,8
+    
+    
+    cmp byte [debug_mode],1
+    jnz .no_debug_addition
+    pushad
+    mov esi,0
+    print_and_flush esi,debug_result_pushed
+    popad
+    push eax
+    call print_op
+    add esp,4
+    print_newline
+    
+    .no_debug_addition:
+    
+    add esp,4
+    
     push eax
     call push_op
     add esp,4
     
-    .done:
+    .done_addition:
     
     jmp get_input
 
 .pop_and_print:
 
+    cmp dword[counter],1 ;check op stack has enough elements to perform pop
+    jge .continue_pop
+    pushad
+    push emptyStack_error
+    call printf
+    add esp,4
+    popad
+    jmp .done_pop
+    
+    
+    .continue_pop:
     call pop_op
     mov ebx,eax   ; ebx - pointer to list
     add esp,4
@@ -171,6 +228,11 @@ get_input:
     call print_op
     add esp,8
     print_newline
+    push ebx    ;free the list after printing
+    call free_list
+    add esp,4 
+    
+    .done_pop:
     jmp get_input
 
 .duplicate:
@@ -213,6 +275,20 @@ get_input:
     push eax
     call countSetBits
     add esp,4
+    
+    cmp byte [debug_mode],1
+    jnz .done_num_1_bits
+    pushad
+    mov esi,0
+    print_and_flush esi,debug_result_pushed
+    popad
+    push eax
+    call print_op
+    add esp,4
+    print_newline
+    
+    .done_num_1_bits:
+    
     push eax
     call push_op
     add esp,4
@@ -225,12 +301,22 @@ get_input:
     
 .push_operand:           ; pushes the operand stored in buff onto the operand stack
     
+    cmp byte [debug_mode],1
+    jnz .no_debug
+    pushad
+    print_and_flush buff,debug_input_read
+    popad
+    add esp,4
+    
+    .no_debug:
+    
     push buff
     call buff_to_list
     add esp,4
     push eax
     call push_op
     add esp,4
+    
     jmp get_input
 
 .exit:
@@ -431,6 +517,8 @@ buffer_isEven:
     
     popad
     mov eax,[head]
+    push eax               ;triming leading zeros
+    call trim_leading_zeros
     mov esp, ebp                 ; Restore caller state
     pop ebp                      ; Restore caller state
     mov byte [firstFlag], 1      ; initializes the flag to 'true'
@@ -484,6 +572,7 @@ pop_op:
     push emptyStack_error
     call printf
     add esp,4
+    popad
     popad                 ; Restore caller state
     mov esp,ebp           ; Restore caller state
     pop ebp               ; Restore caller state
@@ -950,7 +1039,6 @@ duplicate:
  
     jmp .loop
     
-    
     .done:
     mov eax,[prev]
     mov dword[eax+next],0       ;updating the last link to point to null
@@ -960,3 +1048,48 @@ duplicate:
     pop ebp
     ret
 
+;the function gets an link pointer and trim his leading zeros
+trim_leading_zeros:
+    push ebp
+    mov ebp,esp
+    pushad
+    mov ebx,dword[ebp+8]         ;ebx holds link cur pointer
+    mov [head],ebx          ;saving the list's head
+   ; mov [prev],ebx          ;saving the list's prev
+    
+    push ebx                
+    call getListLen
+    add esp,4
+    mov ecx,eax             ;ecx holds list length
+    
+    cmp ecx,2                ;we perform trim only if ecx>=2
+    jge .loop
+    jmp .done_triming
+    
+    .loop:
+    cmp ecx,0
+    jz .done_triming
+    cmp byte[ebx],0
+    jz .trim_here
+
+    
+    dec ecx
+    mov [prev],ebx            ;hold pointer for prev link
+    mov ebx,dword[ebx+next]   ;moving ebx to be the next link
+    jmp .loop
+    
+    .trim_here:
+    push ebx
+    call free_list                 ;free memory of leading zeros list
+    add esp,4
+    
+    mov edx,[prev]
+    mov dword[edx+next],0     ;disconnect the last link with non-zero
+    jmp .done_triming
+    
+    .done_triming:
+    popad
+    mov eax,[head]
+    mov esp,ebp
+    pop ebp
+    ret
