@@ -790,6 +790,7 @@ countSetBits:
     push ebx
     call countSetBitsInLink
     add esp,4
+    mov [ebp-4],eax
     jmp .done
     
     .not_a_signle_link:
@@ -806,10 +807,12 @@ countSetBits:
     push eax
     call addLists
     add esp,8
+    mov [ebp-4],eax
     
     .done:
     
     popad
+    mov eax, [ebp-4]
     mov esp,ebp
     pop ebp
     ret
