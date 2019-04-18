@@ -267,7 +267,7 @@ get_input:
     push eax
     call pop_op
     push eax
-    call mulLinkByList
+    call mulListByList
     add esp,8
     push eax
     call push_op
@@ -1220,5 +1220,38 @@ mulLinkByList:
     popad
     mov eax, [head]
     mov esp, ebp
+    pop ebp
+    ret
+ 
+; [IN]: 2 pointers to lists
+; [OUT]: a pointer to a list of their multiplication
+mulListByList:
+    push ebp
+    mov ebp,esp
+    pushad
+    
+    mov ebx, [ebp+8]    ; ebx - pointer to 1'st list
+    mov ecx, [ebp+12]   ; ecx - pointer to 2'nd list
+    
+    
+    cmp dword [ebx+next], 0   ; base case - 1'st list is a link
+    jnz .1st_list_is_not_a_link
+    
+    .1st_list_is_a_link:      ; we will use the function from above
+    
+    push ebx
+    push ecx
+    call mulLinkByList
+    add esp,8
+    mov [head] ,eax
+    jmp .done
+    
+    .1st_list_is_not_a_link:
+    
+    .done:
+    
+    popad
+    mov eax,[head]
+    mov esp,ebp
     pop ebp
     ret
