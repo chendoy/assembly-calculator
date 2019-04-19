@@ -275,13 +275,13 @@ get_input:
     
     jmp get_input
 
-.mul_and_exp_oppo: ; TESTING divLinkByLink
-
+.mul_and_exp_oppo: ;
+    
     call pop_op  ; X
     push eax
     call pop_op  ; Y
     push eax
-    call divLinkByLink
+    call divLists
     add esp,8
     push eax
     call push_op
@@ -1433,65 +1433,155 @@ mul_and_exp:
     pop ebp
     ret
   
-; [IN]: 2 pointers to links
-; [OUT]: a pointer to a list [quotient]->[remainder]
-divLinkByLink:
+; [IN]: 2 pointers to lists
+; [OUT]: 1 - list1>list2 , -1 - list2>list1 , 0 - list1=list2
+cmpLists:
     push ebp
     mov ebp,esp
+    sub esp,4   ; make room for 2 local variables
     pushad
-    mov eax, [ebp+8] ; arg0 - first link
-    mov ebx, [ebp+12] ; arg1 - second link
-    movzx eax, byte [eax]
-    movzx ebx, byte [ebx]
-    idiv ebx         ; edx = eax / ebx
-    mov edx, eax
     
-    ; creating first link
+    mov esi, [ebp+8]   ; esi - list1
+    mov edi, [ebp+12]  ; edi - list2
     
-    pushad
-    push 1
-    push LINK_SIZE
-    push edx
-    call calloc      ; eax - pointer to first result link
-    pop edx
-    add esp,8
-    mov dword [head], eax
-    mov byte [eax], dl
+    push esi
+    call getListLen
+    add esp,4
+    mov [ebp-4], eax  ; [ebp-4] - list1.length
+    push edi
+    call getListLen ; eax - list2.length
+    mov ecx,eax
+    add esp,4
+    
+    cmp eax, [ebp-4]
+    ja .list2_is_bigger
+    jl .list1_is_bigger
+    
+    ; if reached here so lists are of same LENGTH.
+    ; will now get the reversed lists
+    
+    .lists_same_length:
+    
+    push esi
+    call reverseList
+    add esp,4
+    mov esi,eax
+    push edi
+    call reverseList
+    add esp,4
+    mov edi,eax
+    
+    .loop:
+    
+    movzx ebx, byte [esi] ; ebx = current list1 byte
+    movzx edx, byte [edi] ; edx = current list2 byte
+    
+    cmp bl, dl
+    ja .list1_is_bigger
+    jl .list2_is_bigger
+    
+    mov esi, [esi+next]   ; advance list1
+    mov edi, [edi+next]   ; advance list2
+    
+    loop .loop,ecx
+    
+    ; if reached here so lists are EQUAL
+    mov dword [ebp-4],0
+    jmp .done
+    
+    .list1_is_bigger:
+    mov dword [ebp-4],1
+    jmp .done
+    
+    .list2_is_bigger:
+    mov dword [ebp-4],-1
+    jmp .done
+    
+    .done:
+    
+    
     popad
-    
-    ; creating second link
-    
-    pushad
-    push 1
-    push LINK_SIZE
-    push edx
-    call calloc
-    pop edx
-    add esp,8
-    mov byte [eax], dh
-    
-    
-    mov ecx, [head]
-    mov [ecx+next], eax
-    popad
-    
-    
-    popad
-    mov eax,[head]
-    ;push eax
-    ;call trim_leading_zeros
-    ;add esp,4
+    mov eax,[ebp-4]
     mov esp,ebp
     pop ebp
     ret
+  
+; [IN]: a pointer to a list
+; [OUT]: a pointer to the reversed list
+reverseList: 
+    push ebp
+    mov ebp,esp
+    pushad
     
-
+    mov ebx, [ebp+8]
+    
+    cmp dword [ebx+next], 0
+    jnz .not_a_signle_link
+    
+    .single_link: ; signle link list is already reversed
+    mov [head], ebx
+    jmp .done
+    
+    .not_a_signle_link:
+    
+    mov edx, [ebx+next] ; edx - pointer to the rest of the list
+    mov dword [ebx+next],0  ; disconnects this link from the list
+    push edx
+    call reverseList    ; eax - the rest of the list, reversed
+    add esp,4
+    mov [head],eax
+    push eax
+    call getListLen
+    add esp,4
+    mov ecx, eax        ; ecx is rest(list).length
+    
+    dec ecx
+    cmp ecx,0
+    jz .after_loop  ; in case of single link
+    
+    mov edx, [head]
+    .loop:
+    mov edx, [edx+next] ; advances to the eds of the reversed list
+    loop .loop, ecx
+    
+    .after_loop:
+    
+    ; now edx is a pointer to the last link of the rest of the reversed list
+    
+    mov [edx+next], ebx
+    
+    .done:
+    
+    popad
+    mov eax, [head]
+    mov esp,ebp
+    pop ebp
+    ret
+; [IN]: 2 pointers to 2 lists, X and Y
+; [OUT]: a pointer to the quotient list X/Y
 divLists:
     push ebp
     mov ebp,esp
-    sub esp,4
+    sub esp,4   ; room for local var
     pushad
     
+    ; creating signle link 
+    
+    pushad
+    push 1
+    push LINK_SIZE
+    call calloc
+    add esp,8
+    mov [ebp-4], eax
+    popad
+    mov eax, [ebp-4]
+    mov dword [eax+next],0
+    mov byte [eax], bl
+    
+    mov esi, [ebp+8]   ; esi - Y
+    mov edi, [ebp+12]  ; edi - X
+    
+    ; continue from here
     
     
     popad
