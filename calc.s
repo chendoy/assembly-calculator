@@ -229,7 +229,7 @@ get_input:
     add esp,8
     print_newline
     push ebx    ;free the list after printing
-    call free_list
+    ;call free_list     ; chen - I commented this because seg fault in the power function
     add esp,4 
     
     .done_pop:
@@ -263,11 +263,11 @@ get_input:
 
 .mul_and_exp:
 
-    call pop_op
+    call pop_op  ; X
     push eax
-    call pop_op
+    call pop_op  ; Y
     push eax
-    call mulListByList
+    call mul_and_exp
     add esp,8
     push eax
     call push_op
@@ -529,9 +529,9 @@ buffer_isEven:
     
     popad
     mov eax,[head]
-    push eax               ;triming leading zeros
-    call trim_leading_zeros
-    add esp,4
+    ;push eax               ;triming leading zeros
+    ;call trim_leading_zeros
+    ;add esp,4
     mov esp, ebp                 ; Restore caller state
     pop ebp                      ; Restore caller state
     mov byte [firstFlag], 1      ; initializes the flag to 'true'
@@ -1150,9 +1150,9 @@ mulLinks:
     
     popad
     mov eax,[head]
-    push eax
-    call trim_leading_zeros
-    add esp,4
+    ;push eax
+    ;call trim_leading_zeros
+    ;add esp,4
     mov esp,ebp
     pop ebp
     ret
@@ -1288,6 +1288,64 @@ mulListByList:
     mov esp,ebp
     pop ebp
     ret
+ 
+; [IN]: a pointer to a link
+; [OUT]: 2^link
+two_power_link:
+    push ebp
+    mov ebp,esp
+    sub esp,4
+    pushad
+    
+    mov ebx, [ebp+8]    
+    movzx ecx, byte [ebx]  ; ecx - the data in the arg link
+    mov ebx,2    ; 2^1
+          
+    
+    pushad
+    push 1
+    push LINK_SIZE
+    call calloc
+    add esp,8
+    mov [ebp-4], eax
+    popad
+    mov eax, [ebp-4]
+    mov dword [eax+next],0
+    mov byte [eax], bl
+    mov dword [head], eax
+    
+    dec ecx
+    
+    .loop:
+    mov ebx,2    ; 2^1,  like doing shl one time
+    
+    pushad
+    push 1
+    push LINK_SIZE
+    call calloc
+    add esp,8
+    mov [ebp-4], eax
+    popad
+    mov eax, [ebp-4]
+    mov dword [eax+next],0
+    mov byte [eax], bl
+    
+    mov esi, [head]
+    push esi
+    push eax
+    call mulListByList
+    add esp,8
+    mov dword [head],eax
+    
+    loop .loop,ecx
+    
+    
+    popad
+    mov eax, [head]
+    mov esp,ebp
+    pop ebp
+    ret
+
 
 ; [IN]: a pointer to a list
 ; [OUT]: 2^list
@@ -1296,9 +1354,68 @@ two_power:
     mov ebp,esp
     pushad
     
+    mov ebx, [ebp+8]
     
+    cmp dword [ebx+next], 0
+    jnz .not_a_signle_link
+    
+    .single_link:
+    
+    push ebx
+    call two_power_link
+    add esp,4
+    mov [head] ,eax
+    jmp .done
+    
+    .not_a_signle_link:
+    
+    push ebx
+    call two_power_link
+    add esp,4
+    mov edx, eax        ; edx -pointer to 2^first(list)
+    
+    mov ebx, [ebx+next]  ; advance list
+    push ebx
+    call two_power
+    add esp,4         
+    mov esi, eax        ; esi - 2^rest(list)
+    
+    push esi
+    push edx
+    call mulListByList
+    add esp,8
+    mov [head],eax
+    
+    .done:
     
     popad
+    mov eax, [head]
+    mov esp,ebp
+    pop ebp
+    ret
+    
+; [IN]: X, Y (2 pointers to lists)
+; [OUT]: a pointer to a list with value: X*2^Y
+mul_and_exp:
+    push ebp
+    mov ebp,esp
+    sub esp,4
+    pushad
+    
+    mov ebx, [ebp+8]  ; Y
+    mov ecx, [ebp+12] ; X
+    
+    push ebx
+    call two_power  ; eax = 2^Y
+    add esp,4      
+    push ecx
+    push eax
+    call mulListByList ; eax = X*2^Y
+    add esp,8
+    mov [ebp-4], eax
+    
+    popad
+    mov eax,[ebp-4]
     mov esp,ebp
     pop ebp
     ret
