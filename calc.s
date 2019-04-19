@@ -275,9 +275,17 @@ get_input:
     
     jmp get_input
 
-.mul_and_exp_oppo:
+.mul_and_exp_oppo: ; TESTING divLinkByLink
 
-    
+    call pop_op  ; X
+    push eax
+    call pop_op  ; Y
+    push eax
+    call divLinkByLink
+    add esp,8
+    push eax
+    call push_op
+    add esp,4
 
     jmp get_input
 
@@ -1424,3 +1432,71 @@ mul_and_exp:
     mov esp,ebp
     pop ebp
     ret
+  
+; [IN]: 2 pointers to links
+; [OUT]: a pointer to a list [quotient]->[remainder]
+divLinkByLink:
+    push ebp
+    mov ebp,esp
+    pushad
+    mov eax, [ebp+8] ; arg0 - first link
+    mov ebx, [ebp+12] ; arg1 - second link
+    movzx eax, byte [eax]
+    movzx ebx, byte [ebx]
+    idiv ebx         ; edx = eax / ebx
+    mov edx, eax
+    
+    ; creating first link
+    
+    pushad
+    push 1
+    push LINK_SIZE
+    push edx
+    call calloc      ; eax - pointer to first result link
+    pop edx
+    add esp,8
+    mov dword [head], eax
+    mov byte [eax], dl
+    popad
+    
+    ; creating second link
+    
+    pushad
+    push 1
+    push LINK_SIZE
+    push edx
+    call calloc
+    pop edx
+    add esp,8
+    mov byte [eax], dh
+    
+    
+    mov ecx, [head]
+    mov [ecx+next], eax
+    popad
+    
+    
+    popad
+    mov eax,[head]
+    ;push eax
+    ;call trim_leading_zeros
+    ;add esp,4
+    mov esp,ebp
+    pop ebp
+    ret
+    
+
+divLists:
+    push ebp
+    mov ebp,esp
+    sub esp,4
+    pushad
+    
+    
+    
+    popad
+    mov eax,[ebp-4]
+    mov esp,ebp
+    pop ebp
+    ret
+    
