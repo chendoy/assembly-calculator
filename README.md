@@ -1,6 +1,6 @@
 # caspl_ass2
 
-# TO_DO:
+# To do:
 
 - 'v' operation
 - operation counter

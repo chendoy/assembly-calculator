@@ -1301,6 +1301,10 @@ two_power_link:
     movzx ecx, byte [ebx]  ; ecx - the data in the arg link
     mov ebx,2    ; 2^1
           
+    cmp ecx,1    ; if the exponent is 1 then we're done
+    mov edi, [ebp+8]
+    mov [head], edi
+    jz .done
     
     pushad
     push 1
@@ -1339,6 +1343,7 @@ two_power_link:
     
     loop .loop,ecx
     
+    .done:
     
     popad
     mov eax, [head]
