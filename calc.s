@@ -8,6 +8,7 @@ section .rodata
     newline: db 10,0
     fullStack_error : db "Error: Operand Stack Overflow",10,0
     emptyStack_error: db "Error: Insufficient Number of Arguments on Stack",10,0
+    Y_exceed200_error: db "Error: Y exceeds 200",10,0
     prompt: db "calc: ",0
     debug_str: db "-d",0
     input_length equ 81
@@ -36,6 +37,9 @@ section .bss
     
 section .data
   counter: dd 0                ; op_stack elements counter, initialized to zero
+   operation_counter: dd 0  
+   listHolder_1 : dd 0       ;list holder helper to free memory	
+   listHolder_2:dd 0         ;list holder helper to free memory
   
 %macro print_and_flush 2
     
@@ -116,6 +120,12 @@ main:
     .no_debug_flag:
     
     call myCalc
+    
+    push eax
+    call printNumOfOp
+    add esp,4	
+    call clearstack    ;free memorty
+    
     mov     eax,1
     mov     ebx,0
     int     0x80
@@ -154,14 +164,12 @@ get_input:
     cmp byte [buff], "n"
     jz .number_of_1_bits
     
-    cmp word [buff], "sr"
-    jz .square_root
-    
     jmp .push_operand      ; default case
 
     
 .addition:
 
+    inc dword [operation_counter]
     cmp dword[counter],2 ;check op stack has enough elements to perform addition
     jge .continue_addition
     pushad
@@ -175,8 +183,10 @@ get_input:
 .continue_addition:
     call pop_op
     push eax
+    mov dword[listHolder_1],eax   ;it will hold pointer to list in order to free it
     call pop_op
     push eax
+    mov dword[listHolder_2],eax  ;it will hold pointer to list in order to free it
     call addLists
     add esp,8
     
@@ -200,12 +210,20 @@ get_input:
     call push_op
     add esp,4
     
+    ;push dword[listHolder_1]     ;free memory after sucessfull add
+    ;call free_lst
+    ;add esp,4
+    ;push dword[listHolder_2]
+    ;call free_lst
+    ;add esp,4
+    
     .done_addition:
     
     jmp get_input
 
 .pop_and_print:
 
+    inc dword [operation_counter]
     cmp dword[counter],1 ;check op stack has enough elements to perform pop
     jge .continue_pop
     pushad
@@ -217,6 +235,7 @@ get_input:
     
     
     .continue_pop:
+    mov dword[listHolder_1],eax  ;in order free list later
     call pop_op
     mov ebx,eax   ; ebx - pointer to list
     add esp,4
@@ -228,8 +247,9 @@ get_input:
     call print_op
     add esp,8
     print_newline
-    push ebx    ;free the list after printing
-    ;call free_list     ; chen - I commented this because seg fault in the power function
+    ;push dword [listHolder_1]
+    ;call free_lst
+    
     add esp,4 
     
     .done_pop:
@@ -237,6 +257,7 @@ get_input:
 
 .duplicate:
 
+    inc dword [operation_counter]
     cmp dword[counter],0  ;checks if there are elemnt at stack
     jnz .continue_duplicate 
     
@@ -263,17 +284,69 @@ get_input:
 
 .mul_and_exp:
 
-    call pop_op  ; X
+    inc dword[operation_counter]
+    cmp dword[counter],2  ;checks if there are elemnt at stack
+    jge .continue_mul_and_exp 
+    jmp .InsufficientelementsErr
+    
+    .continue_mul_and_exp: ;checks now the second operand is less equal 200
+    mov ebx,dword[op_top]
+    mov ebx,dword[ebx-4]        ;ebx holds second element at stack
+    
+    push ebx
+    call checkYle200       ;checks if Y<=200
+    add esp,4
+    cmp eax,0
+    jnz .y_over200    ;we dont act in case of  y greater then 200
+    jmp .multiplication_code
+    
+    .y_over200:
+    pushad
+    push Y_exceed200_error
+    call printf
+    add esp,4
+    popad
+    jmp .contTonextInput
+    
+    ;<multiplication code starts here, at this point Y<=200 >
+    .multiplication_code:
+    call pop_op ; X
     push eax
-    call pop_op  ; Y
+    mov dword[listHolder_1],eax  ;list holder to free at the end;list holder to free at the end
+    call pop_op ; Y
     push eax
+    mov dword[listHolder_2],eax  ;list holder to free at the end
     call mul_and_exp
     add esp,8
     push eax
     call push_op
     add esp,4
     
+    ;<free poped list at the end of the code>
+    ;push dword[listHolder_1]     ;free memory after sucessfull add
+    ;call free_lst
+    ;add esp,4
+    ;push dword[listHolder_2]
+    ;call free_lst
+    ;add esp,4
+    ;<done free popped list at the end of the code>
+    
+    jmp .contTonextInput   ;<multiplication code ends here>
+  
+    
+  ;<<this code prints insufficent error>>
+  .InsufficientelementsErr:
+    pushad
+    push emptyStack_error
+    call printf
+    add esp,4
+    popad
+    jmp .contTonextInput
+   ;<<end of insufficent error>>
+    
+    .contTonextInput:    
     jmp get_input
+
 
 .mul_and_exp_oppo: ;
     
@@ -289,9 +362,14 @@ get_input:
 
     jmp get_input
 
-.number_of_1_bits:   
+.number_of_1_bits:  
+
+    inc dword[operation_counter]
+    cmp dword[counter],0
+    jz .not_enough_elements_err
 
     call pop_op
+    mov dword[listHolder_1],eax  ;list holder to free memory
     push eax
     call countSetBits
     add esp,4
@@ -313,9 +391,20 @@ get_input:
     call push_op
     add esp,4
     
-    jmp get_input
-
-.square_root:
+    ;push dword[listHolder_1]   ;free popped list
+    ;call free_lst
+    ;add esp,4
+   
+    jmp .done_1_bits
+   
+    .not_enough_elements_err:
+    pushad
+    push emptyStack_error
+    call printf
+    add esp,4
+    popad
+   
+   .done_1_bits:
     
     jmp get_input
     
@@ -342,6 +431,7 @@ get_input:
 .exit:
     
     popad                   ; Restore caller state
+    mov eax,dword[operation_counter]
     mov esp, ebp            ; Restore caller state
     pop ebp                 ; Restore caller state
     ret
@@ -537,9 +627,9 @@ buffer_isEven:
     
     popad
     mov eax,[head]
-    ;push eax               ;triming leading zeros
-    ;call trim_leading_zeros
-    ;add esp,4
+    push eax
+    call trim_leading_zeros
+    add esp,4
     mov esp, ebp                 ; Restore caller state
     pop ebp                      ; Restore caller state
     mov byte [firstFlag], 1      ; initializes the flag to 'true'
@@ -560,6 +650,9 @@ push_op:                         ; if the stack is full an error will be printed
     push fullStack_error
     call printf
     add esp,4
+    ;push ebx               ;free list's memory
+    ;call free_lst
+    ;add esp,4
     popad                  ; Restore caller state
     mov esp,ebp            ; Restore caller state
     pop ebp                ; Restore caller state
@@ -617,7 +710,7 @@ pop_op:
     ret
     
 ; frees the memory occupied by the list given as parameter, using recursion
-free_list:
+free_lst:
 
     push ebp
     mov ebp, esp
@@ -633,7 +726,7 @@ free_list:
     
     .not_a_single_link:     ; complex case
     push dword [ebx+next]
-    call free_list
+    call free_lst
     add esp,4
     push ebx
     call free
@@ -713,6 +806,7 @@ addLists:
     push 1
     push LINK_SIZE
     call calloc
+    ; mov [listHolder_1],eax  ;save pointer in order to free it
     add esp,8
     mov [ebp-4],eax
     popad
@@ -790,6 +884,7 @@ addLists:
     push 1
     push LINK_SIZE
     call calloc
+    mov [listHolder_2],eax
     add esp,8
     mov edx, edi
     mov byte [eax], dl
@@ -802,6 +897,12 @@ addLists:
     mov esp,ebp
     pop ebp
     mov eax,[head]
+    ;push dword[listHolder_1]      ;free memory
+    ;call free_lst
+    ;add esp,4
+    ;push dword[listHolder_2]
+    ;call free_lst
+    ;add esp,4
     mov byte [firstFlag], 1
     ret
     
@@ -1069,52 +1170,6 @@ duplicate:
     pop ebp
     ret
 
-;the function gets an link pointer and trim his leading zeros
-trim_leading_zeros:
-    push ebp
-    mov ebp,esp
-    pushad
-    mov ebx,dword[ebp+8]         ;ebx holds link cur pointer
-    mov [head],ebx          ;saving the list's head
-   ; mov [prev],ebx          ;saving the list's prev
-    
-    push ebx                
-    call getListLen
-    add esp,4
-    mov ecx,eax             ;ecx holds list length
-    
-    cmp ecx,2                ;we perform trim only if ecx>=2
-    jge .loop
-    jmp .done_triming
-    
-    .loop:
-    cmp ecx,0
-    jz .done_triming
-    cmp byte[ebx],0
-    jz .trim_here
-
-    
-    dec ecx
-    mov [prev],ebx            ;hold pointer for prev link
-    mov ebx,dword[ebx+next]   ;moving ebx to be the next link
-    jmp .loop
-    
-    .trim_here:
-    push ebx
-    call free_list                 ;free memory of leading zeros list
-    add esp,4
-    
-    mov edx,[prev]
-    mov dword[edx+next],0     ;disconnect the last link with non-zero
-    jmp .done_triming
-    
-    .done_triming:
-    popad
-    mov eax,[head]
-    mov esp,ebp
-    pop ebp
-    ret
-
 mulLinks:
     push ebp
     mov ebp,esp
@@ -1158,9 +1213,9 @@ mulLinks:
     
     popad
     mov eax,[head]
-    ;push eax
-    ;call trim_leading_zeros
-    ;add esp,4
+    push eax
+    call trim_leading_zeros
+    add esp,4
     mov esp,ebp
     pop ebp
     ret
@@ -1407,6 +1462,51 @@ two_power:
     pop ebp
     ret
     
+; if y<=200 then eax=0 otherwise eax ==1
+checkYle200:
+    push ebp
+    mov ebp,esp
+    sub esp,4             ;local var will hold the result
+    pushad
+    mov ebx,[ebp+8]    ;ebx holds pointer to Y list
+    push ebx
+    call getListLen
+    add esp,4
+    mov ecx,eax        ;ecx holds list length
+    
+    cmp ecx,3
+    jge .over_200
+    cmp ecx,1
+    jle .under_200
+    
+    mov edx,dword[ebx+next]    ;the list's size is 2 links, edx holds the pointer to next link
+    movzx edx,byte[edx]        ;val of the next link
+    
+    cmp dl,2              ;if right most number>2
+    jg .over_200
+    cmp dl,1
+    jle .under_200         ;if rightmost number<=1
+     
+    movzx edx,byte[ebx]       ;if right most number=2, checks the left number
+    cmp dl,0                  ;left number=0
+    jz .under_200
+    jmp .over_200
+    
+    .over_200:
+    mov dword[ebp-4],1
+    jmp .done_function
+    
+    .under_200:
+    mov dword[ebp-4],0
+    jmp .done_function
+    
+    .done_function:
+    popad
+    mov eax,dword[ebp-4]
+    mov esp,ebp
+    pop ebp
+    ret
+    
 ; [IN]: X, Y (2 pointers to lists)
 ; [OUT]: a pointer to a list with value: X*2^Y
 mul_and_exp:
@@ -1435,77 +1535,7 @@ mul_and_exp:
   
 ; [IN]: 2 pointers to lists
 ; [OUT]: 1 - list1>list2 , -1 - list2>list1 , 0 - list1=list2
-cmpLists:
-    push ebp
-    mov ebp,esp
-    sub esp,4   ; make room for 2 local variables
-    pushad
-    
-    mov esi, [ebp+8]   ; esi - list1
-    mov edi, [ebp+12]  ; edi - list2
-    
-    push esi
-    call getListLen
-    add esp,4
-    mov [ebp-4], eax  ; [ebp-4] - list1.length
-    push edi
-    call getListLen ; eax - list2.length
-    mov ecx,eax
-    add esp,4
-    
-    cmp eax, [ebp-4]
-    ja .list2_is_bigger
-    jl .list1_is_bigger
-    
-    ; if reached here so lists are of same LENGTH.
-    ; will now get the reversed lists
-    
-    .lists_same_length:
-    
-    push esi
-    call reverseList
-    add esp,4
-    mov esi,eax
-    push edi
-    call reverseList
-    add esp,4
-    mov edi,eax
-    
-    .loop:
-    
-    movzx ebx, byte [esi] ; ebx = current list1 byte
-    movzx edx, byte [edi] ; edx = current list2 byte
-    
-    cmp bl, dl
-    ja .list1_is_bigger
-    jl .list2_is_bigger
-    
-    mov esi, [esi+next]   ; advance list1
-    mov edi, [edi+next]   ; advance list2
-    
-    loop .loop,ecx
-    
-    ; if reached here so lists are EQUAL
-    mov dword [ebp-4],0
-    jmp .done
-    
-    .list1_is_bigger:
-    mov dword [ebp-4],1
-    jmp .done
-    
-    .list2_is_bigger:
-    mov dword [ebp-4],-1
-    jmp .done
-    
-    .done:
-    
-    
-    popad
-    mov eax,[ebp-4]
-    mov esp,ebp
-    pop ebp
-    ret
-  
+
 ; [IN]: a pointer to a list
 ; [OUT]: a pointer to the reversed list
 reverseList: 
@@ -1557,35 +1587,124 @@ reverseList:
     mov esp,ebp
     pop ebp
     ret
+    
+ ;the function gets an link pointer and trim his leading zeros
+trim_leading_zeros:
+    push ebp
+    mov ebp,esp
+    pushad
+    mov ebx,dword[ebp+8]         ;ebx holds link cur pointer
+
+    ;<reverse list>
+    push 0
+    push ebx
+    call reverseList
+    add esp,8
+    mov ebx,eax          ;ebx holds now the reversed list head
+    mov edx,ebx
+    mov [head],ebx        ;head is the reversed list head
+    ;<done reverseList>
+    
+    ;<trim>
+    push ebx
+    call getListLen
+    add esp,4
+    mov ecx,eax       ;eax holds list length
+    
+    .loop:
+    cmp ecx,0
+    jz .re_reverselist
+    
+    cmp byte[ebx],0
+    jz .cont_next
+    
+    cmp edx,ebx      ;check if prev is cur
+    jz .re_reverselist
+    
+    mov dword[edx+next],0
+    ;push dword[head]
+    ;call free_lst
+    ;add esp,4
+    mov [head],ebx
+    jmp .re_reverselist
+    
+    .cont_next:
+    dec ecx
+    mov edx,ebx   ;the prevlink
+    mov dword[head],edx
+    mov ebx,[ebx+next]
+    jmp .loop
+    ;<done trim>
+    
+    .re_reverselist:
+    ;<re-reverse the list>
+    push 0
+    push dword[head]
+    call reverseList
+    add esp,8
+    mov [head],eax
+    ;<done re-reverse>
+    popad
+    mov eax,[head]
+    mov esp,ebp
+    pop ebp
+    ret   
+    
+printNumOfOp:
+ 
+    push ebp
+    mov ebp,esp
+    pushad
+    push dword[ebp+8]
+    push format_string_hex
+    call printf
+    add esp,8
+    popad
+    mov esp,ebp
+    pop ebp
+    ret
+    
+clearstack:
+    
+    push ebp
+    mov ebp,esp
+    pushad
+    
+    .loop:
+    cmp dword[counter],0
+    jz .finish_cleaning
+    
+    mov eax,[op_top]
+    ;push dword[eax]
+    ;call free_lst
+    ;add esp,4
+    sub dword[op_top],4
+    dec dword [counter]
+    jmp .loop
+    
+    .finish_cleaning:
+    popad
+    mov esp,ebp
+    pop ebp
+    ret 
+    
 ; [IN]: 2 pointers to 2 lists, X and Y
 ; [OUT]: a pointer to the quotient list X/Y
 divLists:
     push ebp
     mov ebp,esp
-    sub esp,4   ; room for local var
+    sub esp,12   ; room for 3 local vars
     pushad
-    
-    ; creating signle link 
-    
-    pushad
-    push 1
-    push LINK_SIZE
-    call calloc
-    add esp,8
-    mov [ebp-4], eax
-    popad
-    mov eax, [ebp-4]
-    mov dword [eax+next],0
-    mov byte [eax], bl
     
     mov esi, [ebp+8]   ; esi - Y
     mov edi, [ebp+12]  ; edi - X
+        
     
-    ; continue from here
+    
+    .done:
     
     
     popad
-    mov eax,[ebp-4]
     mov esp,ebp
     pop ebp
     ret
