@@ -121,9 +121,12 @@ main:
     
     call myCalc
     
+    .now:
+    
     push eax
     call printNumOfOp
-    add esp,4	
+    add esp,4
+    print_newline
     call clearstack    ;free memorty
     
     mov     eax,1
@@ -142,6 +145,9 @@ get_input:
     print_and_flush prompt, format_string_s
     
     call getInput         ; fill buff variable with user input
+    
+    cmp byte [buff], "x"  
+    jz .debug_mode
         
     cmp byte [buff], "q"  
     jz .exit
@@ -166,7 +172,19 @@ get_input:
     
     jmp .push_operand      ; default case
 
-    
+.debug_mode:
+
+    call pop_op
+    push eax
+    call pop_op
+    push eax
+    call mulListByList  ; eax - length of list
+    add esp,8
+    push eax
+    call push_op
+    add esp,4
+    jmp get_input
+
 .addition:
 
     inc dword [operation_counter]
@@ -348,18 +366,54 @@ get_input:
     jmp get_input
 
 
-.mul_and_exp_oppo: ;
+.mul_and_exp_oppo:
+    inc dword[operation_counter]
     
-    call pop_op  ; X
+     cmp dword[counter],2  ;checks if there are elemnt at stack
+    jge .continue_mul_and_exp_oppo 
+    jmp .InsufficientelementsErr_2
+    
+        
+    
+    .continue_mul_and_exp_oppo:  ;<the division code>
+    
+    call pop_op ; X
+    push eax 
+    mov dword[listHolder_1],eax  ;list holder to free at the end;list holder to free at the end
+    call pop_op ; Y
     push eax
-    call pop_op  ; Y
-    push eax
-    call divLists
+    mov dword[listHolder_2],eax  ;list holder to free at the end
+    
+    call mul_and_exp_oppo
     add esp,8
     push eax
     call push_op
     add esp,4
-
+    
+    
+    ;<free poped list at the end of the code>
+    push dword[listHolder_1]  
+    call free_lst
+    add esp,4
+    push dword[listHolder_2]
+    call free_lst
+    add esp,4 ;<done free lists>
+    
+    
+     jmp .contNext
+    ;<end division code>
+    
+    ;<<this code prints insufficent error>>
+    .InsufficientelementsErr_2:
+    pushad
+    push emptyStack_error
+    call printf
+    add esp,4
+    popad
+    jmp .contNext
+    ;<<end of insufficent error>>
+    
+    .contNext: 
     jmp get_input
 
 .number_of_1_bits:  
@@ -1655,10 +1709,10 @@ printNumOfOp:
     push ebp
     mov ebp,esp
     pushad
-    push dword[ebp+8]
-    push format_string_hex
-    call printf
-    add esp,8
+    
+    mov ebx, dword [ebp+8]
+    print_and_flush ebx, format_string_hex_no_leading
+    
     popad
     mov esp,ebp
     pop ebp
@@ -1687,10 +1741,175 @@ clearstack:
     mov esp,ebp
     pop ebp
     ret 
-    
+
+; [IN]: 2 pointers to 2 links, X,Y
+; [OUT]: a pointer to a list X/Y: [quiotient]->[remainder]
+
 ; [IN]: 2 pointers to 2 lists, X and Y
 ; [OUT]: a pointer to the quotient list X/Y
-divLists:
+cmpLists:
+    push ebp
+    mov ebp,esp
+    sub esp,4   ; make room for 2 local variables
+    pushad
+    
+    ; first, clone the lists because we will change them
+    
+    mov esi, [ebp+8]   ; esi - list1
+    push esi
+    call duplicate
+    add esp,4
+    mov esi,eax
+    
+    mov edi, [ebp+12]  ; edi - list2
+    push edi
+    call duplicate
+    add esp,4
+    mov edi,eax
+    
+    
+    push esi
+    call getListLen
+    add esp,4
+    mov [ebp-4], eax  ; [ebp-4] - list1.length
+    push edi
+    call getListLen ; eax - list2.length
+    mov ecx,eax
+    add esp,4
+    
+    cmp eax, [ebp-4]
+    ja .list2_is_bigger
+    jl .list1_is_bigger
+    
+    ; if reached here so lists are of same LENGTH.
+    ; will now get the reversed lists
+    
+    .lists_same_length:
+    
+    push esi
+    call reverseList
+    add esp,4
+    mov esi,eax
+    push edi
+    call reverseList
+    add esp,4
+    mov edi,eax
+    
+    .loop:
+    
+    movzx ebx, byte [esi] ; ebx = current list1 byte
+    movzx edx, byte [edi] ; edx = current list2 byte
+    
+    cmp bl, dl
+    ja .list1_is_bigger
+    jl .list2_is_bigger
+    
+    mov esi, [esi+next]   ; advance list1
+    mov edi, [edi+next]   ; advance list2
+    
+    loop .loop,ecx
+    
+    ; if reached here so lists are EQUAL
+    mov dword [ebp-4],0
+    jmp .done
+    
+    .list1_is_bigger:
+    mov dword [ebp-4],1
+    jmp .done
+    
+    .list2_is_bigger:
+    mov dword [ebp-4],-1
+    jmp .done
+    
+    .done:
+    
+    
+    popad
+    mov eax,[ebp-4]
+    mov esp,ebp
+    pop ebp
+    ret
+
+; [IN]: a pointer to a list
+; [OUT]: a pointer to the right-shifted list
+shiftRightList:
+    push ebp
+    mov ebp,esp
+    sub esp,4   ; room for local var
+    pushad
+    
+    mov ebx, [ebp+8]  ; ebx = pointer to list
+    mov [ebp-4],ebx   ; saving the pointer in the local var
+    push ebx
+    call getListLen
+    add esp,4
+    
+    mov ecx, eax    ; ecx = length of list
+    
+    ; cloning list
+    
+    push ebx
+    call duplicate
+    add esp,4
+    mov ebx,eax     
+    
+    push ebx
+    call reverseList
+    add esp,4
+    mov ebx,eax     ; now ebx is a pointer to the cloned reversed list
+    mov [ebp-4],ebx
+    
+    
+    mov esi,0       ; esi is the remainder indicator. ecx=1 -> add remainder
+    
+    .loop:
+    
+    xor eax,eax
+    movzx eax,byte [ebx]  ; backup of old link data
+    
+    movzx edx, byte [ebx]
+    shr edx,1
+    mov byte [ebx],dl
+    
+    cmp esi,1
+    jnz .dont_turn_on_msb
+    add edx,0x80 ; turning on the msb by adding 0x80=128
+    mov byte [ebx],dl
+    movzx edx, byte [ebx]
+    
+    .dont_turn_on_msb:
+    
+    movzx edi,al
+    test edi,1 ;checks if the link's data is odd or even
+    
+    jz .set_esi_to_0
+    mov esi,1 ; data is odd then set esi accordingly
+    jmp .esi_already_set
+    
+    .set_esi_to_0:
+    mov esi,0 ; turn off the flag
+    
+    .esi_already_set:
+    
+    mov ebx, [ebx+next] ; advances list pointer
+    loop .loop, ecx
+    
+    .done:
+    
+    push dword [ebp-4]
+    call reverseList
+    add esp,4
+    mov [ebp-4],eax
+    
+    popad
+    mov eax, [ebp-4]
+    mov esp,ebp
+    pop ebp
+    ret
+
+; [IN]: 2 pointers to 2 lists, X and Y
+; [OUT]: a pointer to the list X/(2^Y)
+mul_and_exp_oppo:
     push ebp
     mov ebp,esp
     sub esp,12   ; room for 3 local vars
@@ -1698,14 +1917,56 @@ divLists:
     
     mov esi, [ebp+8]   ; esi - Y
     mov edi, [ebp+12]  ; edi - X
-        
     
+     ; creating signle link [1:0000] - the incrementing list [ebp-4]
     
-    .done:
-    
-    
+    pushad
+    push 1
+    push LINK_SIZE
+    call calloc
+    add esp,8
+    mov [ebp-4], eax
     popad
+    mov eax, dword [ebp-4]
+    mov dword [eax+next],0
+    mov byte [eax], 0
+    
+    ; 1 incrementor link [ebp-12]
+    
+    pushad
+    push 1
+    push LINK_SIZE
+    call calloc
+    add esp,8
+    mov [ebp-12], eax
+    popad
+    mov eax, dword [ebp-12]
+    mov dword [eax+next],0
+    mov byte [eax], 1
+    
+    .loop:
+    
+    push edi
+    call shiftRightList
+    add esp,4
+    mov edi,eax
+    mov dword [ebp-8], edi
+    
+    push dword [ebp-12] ; pushes incrementor
+    push dword [ebp-4]  ; pushes incrementing
+    call addLists
+    add esp,8
+    mov dword [ebp-4],eax ; updating incrementing
+    
+    push dword [ebp-4] ; pushes incrementing list
+    push esi           ; pushes Y
+    call cmpLists      ; and comparing them
+    add esp,8
+    cmp eax,0
+    jnz .loop
+
+    popad
+    mov eax, [ebp-8]
     mov esp,ebp
     pop ebp
     ret
-    
