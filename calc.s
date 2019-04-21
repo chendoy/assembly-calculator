@@ -9,7 +9,7 @@ section .rodata
     Y_exceed200_error: db "wrong Y value",10,0
     prompt: db "calc: ",0
     debug_str: db "-d",0
-    input_length equ 81
+    input_length equ 82
     LINK_SIZE equ 5
     debug_result_pushed: db "DEBUG: RESULT PUSHED ",0
     debug_input_read: db "DEBUG: NUMBER READ %s",0
@@ -17,8 +17,8 @@ section .rodata
 
 
 section .bss
-    buff: resb 81                  ; input buffer
-    buff_backup: resb 81           ; backup for odd buffer length
+    buff: resb 82                  ; input buffer
+    buff_backup: resb 82           ; backup for odd buffer length
     op_stack: resb 20              ; operand stack
     len: equ $ - op_stack
     op_top: resd 1                 ; pointer to the op_stack pointer
@@ -32,6 +32,7 @@ section .bss
     prev: resd 1
     curr: resd 1
     debug_mode: resb 1
+    
     
 section .data
   counter: dd 0                ; op_stack elements counter, initialized to zero
@@ -404,10 +405,10 @@ get_input:
     
     call pop_op ; X
     push eax 
-    mov dword[listHolder_1],eax  ;list holder to free at the end;list holder to free at the end
+    mov dword [listHolder_1],eax  ;list holder to free at the end;list holder to free at the end
     call pop_op ; Y
     push eax
-    mov dword[listHolder_2],eax  ;list holder to free at the end
+    mov dword [listHolder_2],eax  ;list holder to free at the end
     
     call mul_and_exp_oppo
     add esp,8
@@ -431,12 +432,12 @@ get_input:
     
     
     ;<free poped list at the end of the code>
-    push dword[listHolder_1]  
-    call free_lst
-    add esp,4
-    push dword[listHolder_2]
-    call free_lst
-    add esp,4 ;<done free lists>
+    ;push dword[listHolder_1]  
+    ;call free_lst
+    ;add esp,4
+    ;push dword[listHolder_2]
+    ;call free_lst
+    ;add esp,4 ;<done free lists>
     
     
      jmp .contNext
@@ -1388,12 +1389,27 @@ two_power_link:
     
     mov ebx, [ebp+8]    
     movzx ecx, byte [ebx]  ; ecx - the data in the arg link
-    mov ebx,2    ; 2^1
           
     cmp ecx,1    ; if the exponent is 1 then we're done
+    jnz .cont
+    mov byte [ebx], 2
     mov edi, [ebp+8]
     mov [head], edi
     jz .done
+    
+    .cont:
+    
+    mov ebx, [ebp+8]    
+
+    cmp ecx,0 ; if the exponent is 0 then we return 1
+    jnz .regular_case
+    mov byte [ebx],1
+    mov [head], ebx
+    jz .done
+    
+    .regular_case:
+    
+    mov ebx,2    ; 2^1
     
     pushad
     push 1
@@ -1553,6 +1569,9 @@ mul_and_exp:
     
     popad
     mov eax,[ebp-4]
+    push eax
+    call trim_leading_zeros
+    add esp,4
     mov esp,ebp
     pop ebp
     ret
@@ -1888,6 +1907,11 @@ mul_and_exp_oppo:
     mov esi, [ebp+8]   ; esi - Y
     mov edi, [ebp+12]  ; edi - X
     
+    mov dword [ebp-8],edi
+    
+    cmp byte [esi],0 ; if it's 2^0 (do not shift at all)
+    jz .done
+    
      ; creating signle link [1:0000] - the incrementing list [ebp-4]
     
     pushad
@@ -1934,6 +1958,8 @@ mul_and_exp_oppo:
     add esp,8
     cmp eax,0
     jnz .loop
+    
+    .done:
 
     popad
     mov eax, [ebp-8]
