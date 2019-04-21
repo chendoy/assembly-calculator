@@ -1,0 +1,65 @@
+print_list:                 ; DELETE THIS FUNCTION BEFORE SUBMMISION
+    push ebp
+    mov ebp,esp
+    mov ebx, [ebp+8]
+    pushad
+        
+    printing_loop:
+    
+    pushad
+    
+    movzx edx, byte [ebx]
+    print_and_flush edx, format_string_hex         ; prints the link data
+    print_and_flush arrow_symbol, format_string_s  ; prints ->
+
+    popad
+    
+    cmp dword [ebx+next], 0
+    jz done
+    mov ebx,dword [ebx+next]      ; makes ebx points to next link
+    jmp printing_loop
+    
+    done:
+    
+    print_and_flush end_str, format_string_s
+    
+    popad
+    mov esp, ebp              ; Restore caller state
+    pop ebp                   ; Restore caller state
+    ret
+    
+linkToNumber: ; converting the linked list to number (decimal). the number will be restored in eax
+    push ebp
+    mov ebp,esp
+    sub esp,4                     ; space for local variable -> the accumulated number .
+    pushad
+    mov ebx, [ebp+8]              ; get first argument (pointer to head of the linkedList)
+    mov edx,1                      ;edx will be the multipler value. starting from 1 and increase *256 each iteration
+    mov dword[ebp-4],0                  ;accumulated variable initialized to 0
+
+    .loop:
+
+    movzx eax,byte[ebx]             ; eax holds now the number stored in the first 8 bits (the first byte) of the link
+    push edx
+    imul edx                      ; now eax= eax*edx
+    pop edx
+    add dword [ebp-4],dword eax           ;add the result to accumulated
+   
+    
+    cmp dword[ebx+1],0            ; checks if it is the last link in the linkedlist
+    jz .finish 
+    ;if not then
+    mov ebx,dword [ebx+1]         ;ebx points now to the next element in the list
+    mov eax,256
+    imul edx 
+    mov edx,eax                  ;edx holds now the next multiplier
+    jmp .loop                    ;move to the next link
+    
+    .finish:
+    
+    popad                     ; Restore caller state
+    mov eax,[ebp-4]           ;store the accumulated number in eax 
+    mov esp, ebp              ; Restore caller state
+    pop ebp                   ; Restore caller state
+    ret
+    

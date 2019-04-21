@@ -3,12 +3,10 @@ section .rodata
     format_string_hex_no_leading : db "%01X",0
     format_string_s : db "%s",0
     format_string_d: db "%d",0
-    arrow_symbol : db " -> ",0             ; DELETE BEFORE SUBMMISION
-    end_str: db "END",10, 0
     newline: db 10,0
     fullStack_error : db "Error: Operand Stack Overflow",10,0
     emptyStack_error: db "Error: Insufficient Number of Arguments on Stack",10,0
-    Y_exceed200_error: db "Error: Y exceeds 200",10,0
+    Y_exceed200_error: db "wrong Y value",10,0
     prompt: db "calc: ",0
     debug_str: db "-d",0
     input_length equ 81
@@ -146,44 +144,29 @@ get_input:
     
     call getInput         ; fill buff variable with user input
     
-    cmp byte [buff], "x"  
-    jz .debug_mode
-        
-    cmp byte [buff], "q"  
+    cmp byte [buff], "q" 
     jz .exit
     
-    cmp byte [buff], "+"
+    cmp byte [buff], "+"   ; debug mode - [V]
     jz .addition
     
-    cmp byte [buff], "p"
+    cmp byte [buff], "p"  
     jz .pop_and_print
     
-    cmp byte [buff], "d"
+    cmp byte [buff], "d"   ; debug mode - [V]
     jz .duplicate
     
-    cmp byte [buff], "^"   ; todo: insert debug mode
+    cmp byte [buff], "^"   ; debug mode - [V]
     jz .mul_and_exp
     
-    cmp byte [buff], "v"   ; todo: insert debug mode
+    cmp byte [buff], "v"   ; debug mode - [V]
     jz .mul_and_exp_oppo
     
-    cmp byte [buff], "n"
+    cmp byte [buff], "n"   ; debug mode - [V]
     jz .number_of_1_bits
     
-    jmp .push_operand      ; default case
+    jmp .push_operand      ; debug mode - [V]
 
-.debug_mode:
-
-    call pop_op
-    push eax
-    call pop_op
-    push eax
-    call mulListByList  ; eax - length of list
-    add esp,8
-    push eax
-    call push_op
-    add esp,4
-    jmp get_input
 
 .addition:
 
@@ -292,6 +275,19 @@ get_input:
     add esp,4
     pop ebx
     
+    cmp byte [debug_mode],1
+    jnz .no_debug_addition
+    pushad
+    mov esi,0
+    print_and_flush esi,debug_result_pushed
+    popad
+    push eax
+    call print_op
+    add esp,4
+    print_newline
+    
+    .no_debug_duplicate:
+    
     push eax       ;pushing the duplicated list to operand stack
     call push_op
     add esp,4
@@ -302,14 +298,14 @@ get_input:
 
 .mul_and_exp:
 
-    inc dword[operation_counter]
-    cmp dword[counter],2  ;checks if there are elemnt at stack
+    inc dword [operation_counter]
+    cmp dword [counter],2  ;checks if there are elemnt at stack
     jge .continue_mul_and_exp 
     jmp .InsufficientelementsErr
     
     .continue_mul_and_exp: ;checks now the second operand is less equal 200
-    mov ebx,dword[op_top]
-    mov ebx,dword[ebx-4]        ;ebx holds second element at stack
+    mov ebx,dword [op_top]
+    mov ebx,dword [ebx-4]        ;ebx holds second element at stack
     
     push ebx
     call checkYle200       ;checks if Y<=200
@@ -320,9 +316,7 @@ get_input:
     
     .y_over200:
     pushad
-    push Y_exceed200_error
-    call printf
-    add esp,4
+    print_and_flush Y_exceed200_error, format_string_s
     popad
     jmp .contTonextInput
     
@@ -330,12 +324,26 @@ get_input:
     .multiplication_code:
     call pop_op ; X
     push eax
-    mov dword[listHolder_1],eax  ;list holder to free at the end;list holder to free at the end
+    mov dword [listHolder_1],eax  ;list holder to free at the end;list holder to free at the end
     call pop_op ; Y
     push eax
     mov dword[listHolder_2],eax  ;list holder to free at the end
     call mul_and_exp
     add esp,8
+    
+    cmp byte [debug_mode],1
+    jnz .no_debug_mul_and_exp
+    pushad
+    mov esi,0
+    print_and_flush esi,debug_result_pushed
+    popad
+    push eax
+    call print_op
+    add esp,4
+    print_newline
+    
+    .no_debug_mul_and_exp:
+    
     push eax
     call push_op
     add esp,4
@@ -367,15 +375,32 @@ get_input:
 
 
 .mul_and_exp_oppo:
-    inc dword[operation_counter]
-    
-     cmp dword[counter],2  ;checks if there are elemnt at stack
+
+    inc dword [operation_counter]
+    cmp dword [counter],2  ;checks if there are elemnt at stack
     jge .continue_mul_and_exp_oppo 
     jmp .InsufficientelementsErr_2
     
-        
     
     .continue_mul_and_exp_oppo:  ;<the division code>
+    
+    mov ebx,dword [op_top]
+    mov ebx,dword [ebx-4]        ;ebx holds second element at stack
+    
+    push ebx
+    call checkYle200       ;checks if Y<=200
+    add esp,4
+    cmp eax,0
+    jnz .y_over200_oppo    ;we dont act in case of  y greater then 200
+    jmp .multiplication_code_oppo
+    
+    .y_over200_oppo:
+    pushad
+    print_and_flush Y_exceed200_error, format_string_s
+    popad
+    jmp .contTonextInput
+    
+    .multiplication_code_oppo:
     
     call pop_op ; X
     push eax 
@@ -386,6 +411,20 @@ get_input:
     
     call mul_and_exp_oppo
     add esp,8
+    
+    cmp byte [debug_mode],1
+    jnz .no_debug_mul_and_exp_oppo
+    pushad
+    mov esi,0
+    print_and_flush esi,debug_result_pushed
+    popad
+    push eax
+    call print_op
+    add esp,4
+    print_newline
+    
+    .no_debug_mul_and_exp_oppo:
+    
     push eax
     call push_op
     add esp,4
@@ -488,37 +527,6 @@ get_input:
     mov eax,dword[operation_counter]
     mov esp, ebp            ; Restore caller state
     pop ebp                 ; Restore caller state
-    ret
-    
-    
-print_list:                 ; DELETE THIS FUNCTION BEFORE SUBMMISION
-    push ebp
-    mov ebp,esp
-    mov ebx, [ebp+8]
-    pushad
-        
-    printing_loop:
-    
-    pushad
-    
-    movzx edx, byte [ebx]
-    print_and_flush edx, format_string_hex         ; prints the link data
-    print_and_flush arrow_symbol, format_string_s  ; prints ->
-
-    popad
-    
-    cmp dword [ebx+next], 0
-    jz done
-    mov ebx,dword [ebx+next]      ; makes ebx points to next link
-    jmp printing_loop
-    
-    done:
-    
-    print_and_flush end_str, format_string_s
-    
-    popad
-    mov esp, ebp              ; Restore caller state
-    pop ebp                   ; Restore caller state
     ret
     
 get_length:
@@ -792,42 +800,6 @@ free_lst:
     mov esp, ebp              ; Restore caller state
     pop ebp                   ; Restore caller state
     ret                       ; return
-    
-    
-linkToNumber: ; converting the linked list to number (decimal). the number will be restored in eax
-    push ebp
-    mov ebp,esp
-    sub esp,4                     ; space for local variable -> the accumulated number .
-    pushad
-    mov ebx, [ebp+8]              ; get first argument (pointer to head of the linkedList)
-    mov edx,1                      ;edx will be the multipler value. starting from 1 and increase *256 each iteration
-    mov dword[ebp-4],0                  ;accumulated variable initialized to 0
-
-    .loop:
-
-    movzx eax,byte[ebx]             ; eax holds now the number stored in the first 8 bits (the first byte) of the link
-    push edx
-    imul edx                      ; now eax= eax*edx
-    pop edx
-    add dword [ebp-4],dword eax           ;add the result to accumulated
-   
-    
-    cmp dword[ebx+1],0            ; checks if it is the last link in the linkedlist
-    jz .finish 
-    ;if not then
-    mov ebx,dword [ebx+1]         ;ebx points now to the next element in the list
-    mov eax,256
-    imul edx 
-    mov edx,eax                  ;edx holds now the next multiplier
-    jmp .loop                    ;move to the next link
-    
-    .finish:
-    
-    popad                     ; Restore caller state
-    mov eax,[ebp-4]           ;store the accumulated number in eax 
-    mov esp, ebp              ; Restore caller state
-    pop ebp                   ; Restore caller state
-    ret
     
 
 ; [IN]: 2 linked list pinter representing numbers
@@ -1516,47 +1488,45 @@ two_power:
     pop ebp
     ret
     
-; if y<=200 then eax=0 otherwise eax ==1
+; [IN]: a pointer to a input list
+; [OUT]: if Y<=200 then eax=0 otherwise eax ==1
 checkYle200:
     push ebp
     mov ebp,esp
     sub esp,4             ;local var will hold the result
     pushad
     mov ebx,[ebp+8]    ;ebx holds pointer to Y list
-    push ebx
-    call getListLen
-    add esp,4
-    mov ecx,eax        ;ecx holds list length
+
+    ; creating a link with data value of C8 hex (200 dec) for comparison
     
-    cmp ecx,3
-    jge .over_200
-    cmp ecx,1
-    jle .under_200
-    
-    mov edx,dword[ebx+next]    ;the list's size is 2 links, edx holds the pointer to next link
-    movzx edx,byte[edx]        ;val of the next link
-    
-    cmp dl,2              ;if right most number>2
-    jg .over_200
-    cmp dl,1
-    jle .under_200         ;if rightmost number<=1
-     
-    movzx edx,byte[ebx]       ;if right most number=2, checks the left number
-    cmp dl,0                  ;left number=0
-    jz .under_200
-    jmp .over_200
-    
-    .over_200:
-    mov dword[ebp-4],1
-    jmp .done_function
-    
-    .under_200:
-    mov dword[ebp-4],0
-    jmp .done_function
-    
-    .done_function:
+    pushad
+    push 1
+    push LINK_SIZE
+    call calloc
+    add esp,8
+    mov [ebp-4], eax
     popad
-    mov eax,dword[ebp-4]
+    mov eax, dword [ebp-4]
+    mov dword [eax+next],0
+    mov byte [eax], 0xC8    ; eax - link [C8:0000]
+    
+    push eax
+    push ebx  
+    call cmpLists ; will return 1 iff ebx list > eax list
+    add esp,8
+    cmp eax,1
+    jz .above_200
+    mov dword [ebp-4],0
+    jmp .done
+    
+    .above_200:
+    mov dword [ebp-4],1
+    jmp .done
+    
+    .done:
+    
+    popad
+    mov eax,dword [ebp-4]
     mov esp,ebp
     pop ebp
     ret
@@ -1742,11 +1712,8 @@ clearstack:
     pop ebp
     ret 
 
-; [IN]: 2 pointers to 2 links, X,Y
-; [OUT]: a pointer to a list X/Y: [quiotient]->[remainder]
-
-; [IN]: 2 pointers to 2 lists, X and Y
-; [OUT]: a pointer to the quotient list X/Y
+; [IN]: 2 pointer to lists, list1 (secondly pushed) and list2 (firstly pushed)
+; [OUT]: 1 if list1>list2, -1 if list2>list1 and 0 if equal
 cmpLists:
     push ebp
     mov ebp,esp
@@ -1903,6 +1870,9 @@ shiftRightList:
     
     popad
     mov eax, [ebp-4]
+    push eax
+    call trim_leading_zeros
+    add esp,4
     mov esp,ebp
     pop ebp
     ret
