@@ -145,6 +145,9 @@ get_input:
     
     call getInput         ; fill buff variable with user input
     
+    cmp byte [buff], 10   ; empty input handler
+    jz get_input
+    
     cmp byte [buff], "q" 
     jz .exit
     
@@ -166,9 +169,12 @@ get_input:
     cmp byte [buff], "n"   ; debug mode - [V]
     jz .number_of_1_bits
     
+    cmp word [buff], "sr"  ; debug mode - [V]
+    jz .square_root
+    
     jmp .push_operand      ; debug mode - [V]
 
-
+    
 .addition:
 
     inc dword [operation_counter]
@@ -458,7 +464,7 @@ get_input:
 
 .number_of_1_bits:  
 
-    inc dword[operation_counter]
+    inc dword [operation_counter]
     cmp dword[counter],0
     jz .not_enough_elements_err
 
@@ -521,6 +527,50 @@ get_input:
     add esp,4
     
     jmp get_input
+    
+.square_root:
+    
+    inc dword [operation_counter]
+    cmp dword [counter],0
+    jz .not_enough_elements_err
+
+    call pop_op
+    mov dword [listHolder_1],eax  ;list holder to free memory
+    push eax
+    call square_root
+    add esp,4
+    
+    cmp byte [debug_mode],1
+    jnz .done_sr
+    pushad
+    mov esi,0
+    print_and_flush esi,debug_result_pushed
+    popad
+    push eax
+    call print_op
+    add esp,4
+    print_newline
+    
+    .done_sr:
+    
+    push eax
+    call push_op
+    add esp,4
+   
+    jmp .done_square_root
+   
+    .not_enough_elements_err_sr:
+    pushad
+    push emptyStack_error
+    call printf
+    add esp,4
+    popad
+   
+   .done_square_root:
+    
+    jmp get_input
+
+
 
 .exit:
     
@@ -1100,18 +1150,20 @@ countSetBitsInLink:
     mov ebx, [ebp+8]
     
     movzx eax, byte [ebx]
-    mov ecx,0              ;is the counter register
-    xor edx,edx            ;is done to make edx 0, you can also do mov edx,0
-    .notDoneWithNumber:
+    mov ecx,0              
+    xor edx,edx            ; zero edx
+    
+    .not_done_yet:
     cmp eax,0
     je .done
-    mov edx,eax            ;edx is here a compare register, not nice, but it works
-    shr eax,1              ;we push all the bits one place to the right, bits at position 1 will be "pushed out of the byteword"
-    and edx,1h             ;make sure we only get, wether the last bit is set or not(thats called bitmaking) 
+    mov edx,eax            
+    shr eax,1              
+    and edx,1h             
     cmp edx,0h
-    jz .notDoneWithNumber   ;if the found value is a zero we can skip the inc of the count register
+    jz .not_done_yet  
+    
     inc ecx
-    jmp .notDoneWithNumber
+    jmp .not_done_yet
     
     .done:                      ;register ecx will now hold hamming weight
         
@@ -1781,12 +1833,15 @@ cmpLists:
     add esp,4
     mov edi,eax
     
+    xor ebx,ebx
+    xor edx,edx
+    
     .loop:
     
     movzx ebx, byte [esi] ; ebx = current list1 byte
-    movzx edx, byte [edi] ; edx = current list2 byte
+    movzx edx,  byte [edi] ; edx = current list2 byte
     
-    cmp bl, dl
+    cmp  ebx, edx
     ja .list1_is_bigger
     jl .list2_is_bigger
     
@@ -1963,6 +2018,84 @@ mul_and_exp_oppo:
 
     popad
     mov eax, [ebp-8]
+    mov esp,ebp
+    pop ebp
+    ret
+    
+; [IN]: a pointer to a list X
+; [OUT]: a pointer to the square root list of X
+square_root:
+    push ebp
+    mov ebp,esp
+    sub esp,12   ; room for 3 local vars
+    pushad
+    
+    mov esi, [ebp+8]   ; esi - X
+        
+    ; [ebp-4] - signle link [0:0000] - the factor link 
+    
+    pushad
+    push 1
+    push LINK_SIZE
+    call calloc
+    add esp,8
+    mov [ebp-4], eax
+    popad
+    mov eax, [ebp-4]
+    mov dword [eax+next],0
+    mov byte [eax], 0
+    
+    ; [ebp-12] - 1 incrementor link 
+    
+    pushad
+    push 1
+    push LINK_SIZE
+    call calloc
+    add esp,8
+    mov [ebp-12], eax
+    popad
+    mov eax, [ebp-12]
+    mov dword [eax+next],0
+    mov byte [eax], 1
+
+    
+    .loop:
+    
+    push dword [ebp-4]
+    push dword [ebp-4]
+    call mulListByList
+    add esp,8
+    push esi
+    push eax
+    call cmpLists
+    add esp,8
+    cmp eax,1
+    jz .dec_and_done  ; decrement and done
+    cmp eax,0
+    jz .done  ; completely done
+    
+    ; esle
+    push dword [ebp-12]
+    push dword [ebp-4]
+    call addLists
+    add esp,8
+    mov [ebp-4],eax
+    
+    jmp .loop
+    
+    .dec_and_done:
+    
+    ; decrementing the factor link data byte by one
+    
+    mov edx, dword [ebp-4]
+    movzx ecx, byte [edx]
+    dec ecx
+    mov byte [edx],cl
+    
+    .done:
+    
+    popad
+    mov eax,[ebp-4]
     mov esp,ebp
     pop ebp
     ret
